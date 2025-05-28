@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deepseek-r1 1.5b Chat</title>
+    <link rel="stylesheet" href="../../css/styles.css">
+    <script src="../../js/config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>Deepseek-r1</h3>
+            <i class="toggle-btn fas fa-bars"></i>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="/index.html"><i class="fas fa-home"></i> Home</a></li>
+            <li class="active"><a href="/views/chat.html"><i class="fas fa-comment"></i> Chat</a></li>
+            <li><a href="/views/workflows.html"><i class="fas fa-project-diagram"></i> Workflows</a></li>
+            <li class="dropdown">
+                <a href="#"><i class="fas fa-cogs"></i> Settings <i class="fas fa-chevron-down"></i></a>
+                <ul class="dropdown-menu">
+                    <li><a href="#">API Settings</a></li>
+                    <li><a href="#">Prompt Templates</a></li>
+                    <li><a href="#">Model Configuration</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <div class="main-content">
+        <div class="chat-container">
+            <h1>Deepseek-r1 1.5b Chat</h1>
+            <div id="chat"></div>
+            <div id="input-area">
+                <input type="text" id="message" placeholder="Type a message..." />
+                <button onclick="sendMessage()"><i class="fas fa-paper-plane"></i> Send</button>
+            </div>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <script src="../../js/chat.js"></script>
+</body>
+</html>

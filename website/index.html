@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>n8n Test Interface</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/config.js"></script>
+</head>
+<body>
+    <h1>n8n API Test</h1>
+    <div class="menu">
+        <a href="index.html">Home</a>
+        <a href="chat.html">Chat</a>
+        <a href="workflows.html">Workflows</a>
+    </div>
+    <button id="test-connection">Test n8n Connection</button>
+    <div id="result"></div>
+
+    <script>
+        document.getElementById('test-connection').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/n8n/healthz');
+                const data = await response.json();
+                document.getElementById('result').innerHTML = 
+                    '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (error) {
+                document.getElementById('result').innerHTML = 
+                    '<p>Error: ' + error.message + '</p>';
+            }
+        });
+    </script>
+</body>
+</html>

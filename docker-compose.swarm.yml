@@ -1,0 +1,18 @@
+networks:
+  frontend:
+    driver: overlay
+    attachable: true
+  backend:
+    driver: overlay
+    attachable: true
+
+services:
+  web:
+    deploy:
+      replicas: 1
+  db:
+    deploy:
+      replicas: 1
+  n8n:
+    deploy:
+      replicas: 1

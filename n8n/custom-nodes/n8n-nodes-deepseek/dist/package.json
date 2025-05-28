@@ -1,0 +1,58 @@
+{
+    "name": "n8n-nodes-deepseek",
+    "version": "0.1.0",
+    "description": "n8n node for DeepSeek-r1:1.5B model integration",
+    "keywords": [
+        "n8n-community-node-package",
+        "deepseek",
+        "llm",
+        "ai"
+    ],
+    "license": "MIT",
+    "homepage": "https://github.com/yourusername/n8n-nodes-deepseek#readme",
+    "author": "Your Name <your@email.com>",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/yourusername/n8n-nodes-deepseek.git"
+    },
+    "engines": {
+        "node": ">=18.10",
+        "pnpm": ">=9.1"
+    },
+    "packageManager": "pnpm@9.1.4",
+    "main": "index.js",
+    "scripts": {
+        "preinstall": "npx only-allow pnpm",
+        "build": "tsc && gulp build:icons",
+        "dev": "tsc --watch",
+        "format": "prettier nodes --write",
+        "lint": "eslint nodes package.json",
+        "lintfix": "eslint nodes package.json --fix",
+        "prepublishOnly": "pnpm build && pnpm lint -c .eslintrc.prepublish.js nodes package.json"
+    },
+    "files": [
+        "dist"
+    ],
+    "n8n": {
+        "n8nNodesApiVersion": 1,
+        "credentials": [],
+        "nodes": [
+            "dist/nodes/Dsr1/Dsr1.node.js"
+        ]
+    },
+    "devDependencies": {
+        "@typescript-eslint/parser": "^7.15.0",
+        "eslint": "^8.56.0",
+        "eslint-plugin-n8n-nodes-base": "^1.16.1",
+        "gulp": "^5.0.0",
+        "prettier": "^3.3.2",
+        "typescript": "^5.8.3"
+    },
+    "peerDependencies": {
+        "n8n-workflow": "*"
+    },
+    "type": "commonjs",
+    "bugs": {
+        "url": "https://github.com/yourusername/n8n-nodes-deepseek/issues"
+    }
+}
