@@ -73,7 +73,7 @@ data_compose/
 
 ### Environment Variables (.env)
 
-The project uses environment variables stored in `.env` (NOT `.env.example` as the documentation previously stated):
+The project uses environment variables stored in `.env`:
 
 ```bash
 DB_USER=vel
@@ -82,7 +82,7 @@ DB_NAME=mydb
 N8N_ENCRYPTION_KEY=a_random_secure_encryption_key_here
 ```
 
-**Important**: The `.env` file already exists and contains the actual configuration. No copying from template files is required.
+**Setup**: Copy `.env.example` to `.env` and update with your secure credentials.
 
 ### Docker Configuration
 
@@ -192,7 +192,8 @@ Before running the application, ensure you have:
 
 1. **Environment Configuration**:
    ```bash
-   # The .env file already exists - update it with your secure credentials
+   # Copy the example template and edit with your secure credentials
+   cp .env.example .env
    nano .env
    ```
    

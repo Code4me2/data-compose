@@ -164,6 +164,7 @@ To run the application:
 
 1. Set up the environment file:
    ```
+   # Copy the example template and edit with your secure credentials
    cp .env.example .env
    # Edit .env with your secure credentials
    ```

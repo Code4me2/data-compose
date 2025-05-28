@@ -8,8 +8,6 @@
 
 # Logs and temporary files
 *.log
-error.txt
-update.txt
 crash.journal
 
 # System files
