@@ -15,8 +15,8 @@ export class Dsr1 implements INodeType {
     defaults: {
       name: 'DeepSeek R1',
     },
-    inputs: ["main"],
-    outputs: ["main"],
+    inputs: ['main'],
+    outputs: ['main'],
     properties: [
       {
         displayName: 'Operation',

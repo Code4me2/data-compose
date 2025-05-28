@@ -28,19 +28,15 @@ data_compose/
 ├── nginx/                         # NGINX configuration
 │   └── conf.d/
 │       └── default.conf           # Unified NGINX config with proxy settings
-├── website/                       # Frontend web assets
+├── website/                       # Frontend web assets (Single Page Application)
 │   ├── css/
-│   │   └── styles.css             # Shared styles for all pages
+│   │   ├── app.css                # Unified CSS framework with design system
+│   │   └── styles.css             # Legacy CSS (preserved for reference)
 │   ├── js/                        # JavaScript modules
-│   │   ├── chat.js                # Chat functionality with webhook integration
-│   │   ├── config.js              # Frontend configuration (webhook URLs)
-│   │   └── debug.js               # Debugging utilities for API calls
-│   ├── views/                     # HTML view templates
-│   │   ├── chat.html              # Chat interface for AI interaction
-│   │   └── workflows.html         # Workflows management interface
+│   │   ├── app.js                 # Extensible application framework
+│   │   └── config.js              # Frontend configuration (webhook URLs)
 │   ├── favicon.ico                # Website favicon
-│   ├── index.html                 # Main entry point with n8n connection test
-│   └── test.html                  # Testing interface
+│   └── index.html                 # Single entry point with all functionality
 └── n8n/                           # n8n configuration and extensions
     ├── custom-nodes/              # Custom nodes for n8n
     │   ├── n8n-nodes-deepseek/    # DeepSeek AI integration node
@@ -136,22 +132,24 @@ npm run format      # Prettier formatting
 
 ## Web Frontend
 
-### Core Components
+### Single Page Application Architecture
 
-1. **Main Interface** (`index.html`): n8n connection testing and navigation
-2. **Chat Interface** (`views/chat.html`): Real-time AI chat via webhooks
-3. **Workflows Interface** (`views/workflows.html`): n8n workflow management
-4. **Test Interface** (`test.html`): Development testing
+The frontend is built as a unified SPA with seamless navigation between sections:
+
+1. **Home Section**: Welcome page with feature overview and system testing
+2. **AI Chat Section**: Real-time chat interface with DeepSeek R1 via webhooks
+3. **Workflows Section**: n8n workflow management and monitoring
+4. **Extensible Framework**: Easy addition of new sections and features
 
 ### JavaScript Architecture
 
+- **app.js**: Complete application framework with:
+  - Class-based design (`DataComposeApp`) for state management
+  - Section registration system for modular functionality
+  - Preserved chat functionality with webhook integration
+  - Extensible navigation system with tab-based interface
+  - Defensive programming for robust error handling
 - **config.js**: Centralized configuration with webhook URL management
-- **chat.js**: Complete chat functionality with:
-  - Sidebar navigation with collapsible dropdown menus
-  - Real-time messaging via fetch API
-  - Error handling and status display
-  - Enter key send support
-- **debug.js**: API call logging and debugging utilities
 
 ### Frontend Configuration
 
