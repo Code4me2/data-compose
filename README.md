@@ -10,49 +10,58 @@ Current functionality is limited, and future versions will include a more compre
 
 ## Project Overview
 
-Data Compose is a simple web application that integrates with n8n (a workflow automation tool) to process and enhance large scale textual data through scripted AI-powered workflows. The application features a Docker-based architecture with a typescript web frontend, n8n workflow engine, and PostgreSQL database for image persistance. Future versions will be geared towards a Judicial Access Project, which will prioritize extracting causal context from judicial transcripts.
+Data Compose is a simple web application that integrates with n8n (a workflow automation tool) to process and enhance large scale textual data through scripted AI-powered workflows. The application features a Docker-based architecture with a TypeScript web frontend, n8n workflow engine, and PostgreSQL database for data persistence. Future versions will be geared towards a Judicial Access Project, which will prioritize extracting causal context from judicial transcripts.
 
 
 ## Quick Start
 
 **Recommended starting point:** Linux-based terminal/WSL
-Ensure **Docker and git** are installed
-	→ docker desktop automatically installs docker engine (**recommended**)
+
+Ensure **Docker and git** are installed:
+- Docker Desktop automatically installs Docker Engine (**recommended**)
 
 In either the macOS terminal, Linux terminal, or WSL run the following to confirm necessary downloads:
-```
+
+```bash
 docker version
 ```
-```
-Git version
+
+```bash
+git version
 ```
 
-*** Clone the Codebase:***
+### 1. Clone the Codebase
+
 Navigate to the folder where you want to manage this software, and run:
 
-```
+```bash
 git clone https://github.com/Code4me2/data-compose.git
 ```
-**configure `.env` variables with the basic format**
-```
+
+### 2. Configure Environment Variables
+
+```bash
 cd data_compose
 cp .env.example .env
 ```
-** Start Docker Compose** to initialize the application
-Docker compose up -d
+
+### 3. Start Docker Compose
+
+```bash
+docker-compose up -d
 ```
 
-Navigate to http://localhost:8080  in your device’s browser to access the data_compose home webpage UI.
+Navigate to http://localhost:8080 in your device’s browser to access the data_compose home webpage UI.
 
 To access the workflows that the UI offers, navigate to http://localhost:5678 and create your n8n account. Navigate to the home window and create a new workflow:
 
-image_of_interface 
+<!-- Add n8n interface screenshot here --> 
 
-## Setup Application Workflow Testing:
+## Setup Application Workflow Testing
 
-From the workflow window, select the button with three dots in the top right corner, and choose the option: `import from file`
+From the workflow window, select the button with three dots in the top right corner, and choose the option: **Import from file**
 
-Select your workflow from the workflow_json folder within data_compose.
+Select your workflow from the `workflow_json` folder within data_compose.
 
 
 ## Architecture
@@ -67,7 +76,8 @@ The project consists of three main services orchestrated via Docker Compose:
 
 ```
 data_compose/
-├── .env                           # Environment variables (IMPORTANT: exists, no .env.example)
+├── .env                           # Environment variables (create from .env.example)
+├── .env.example                   # Template for environment configuration
 ├── .claude/                       # Claude Code configuration
 │   └── settings.local.json        # Local Claude settings with permissions
 ├── CLAUDE.md                      # Project documentation
@@ -277,38 +287,42 @@ Before running the application, ensure you have:
 4. **Access the Application**:
    - **Main Interface**: `http://localhost:8080` (start here)
    - **n8n Admin Panel**: `http://localhost:8080/n8n/` (workflow management)
-   - **Chat Interface**: `http://localhost:8080/views/chat.html` (AI chat)
-   - **Workflows**: `http://localhost:8080/views/workflows.html` (workflow browser)
+   - **Chat Interface**: Click on "AI Chat" tab in the main interface
+   - **Workflows**: Click on "Workflows" tab in the main interface
 
 ### DeepSeek Setup (Required for AI Features)
 
 The custom n8n node requires Ollama with DeepSeek model:
 
-1. **Install Ollama** (if not already installed):
-   ```bash
-   # macOS
-   brew install ollama
-   
-   # Linux
-   curl -fsSL https://ollama.ai/install.sh | sh
-   ```
+#### 1. Install Ollama (if not already installed)
 
-2. **Download DeepSeek Model**:
-   ```bash
-   ollama pull deepseek-r1:1.5b
-   ```
+```bash
+# macOS
+brew install ollama
 
-3. **Start Ollama Server**:
-   ```bash
-   ollama serve
-   # Should be accessible at http://localhost:11434
-   ```
+# Linux
+curl -fsSL https://ollama.ai/install.sh | sh
+```
 
-4. **Test DeepSeek Integration**:
-   ```bash
-   # Test that Ollama is working
-   curl http://localhost:11434/api/tags
-   ```
+#### 2. Download DeepSeek Model
+
+```bash
+ollama pull deepseek-r1:1.5b
+```
+
+#### 3. Start Ollama Server
+
+```bash
+ollama serve
+# Should be accessible at http://localhost:11434
+```
+
+#### 4. Test DeepSeek Integration
+
+```bash
+# Test that Ollama is working
+curl http://localhost:11434/api/tags
+```
 
 ### First-Time Setup Verification
 
@@ -322,7 +336,8 @@ The custom n8n node requires Ollama with DeepSeek model:
    - Search for "DeepSeek R1" node - should be available
 
 3. **Test Chat Interface**:
-   - Visit `http://localhost:8080/views/chat.html`
+   - Visit `http://localhost:8080`
+   - Click on "AI Chat" tab
    - Send a message - should get AI response (requires n8n workflow setup)
 
 ### Stopping the System
@@ -378,8 +393,9 @@ docker-compose down -v
 - **Immediate Reload**: Changes reflect immediately (volume mounted)
 - **Key Files**:
   - `website/js/config.js` - Webhook configuration
-  - `website/views/chat.html` - Chat interface
-  - `website/css/styles.css` - Styling
+  - `website/js/app.js` - Application framework
+  - `website/css/app.css` - Main stylesheet
+  - `website/index.html` - Single page application
 
 ### Configuration Updates
 
@@ -415,7 +431,7 @@ docker-compose up -d --force-recreate
 - **WebSocket Support**: Full n8n WebSocket proxy for real-time features
 - **Health Checks**: All Docker services include health monitoring
 - **TypeScript**: Strict typing throughout custom node development
-- **Responsive Design**: CSS framework with sidebar navigation
+- **Responsive Design**: Single page application with tab navigation
 
 ## Missing/Future Enhancements
 
