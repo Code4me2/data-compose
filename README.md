@@ -1,8 +1,59 @@
 # Data Compose Project
 
+
+## Current Project Status
+
+This repository contains a **basic working implementation** of an automated n8n workflow, with a modular interface and backend.
+Standard procedures for updates to the architecture are outlined below in the **changes** section.
+The node-based n8n architecture allows for future custom node development for more advanced functionality.
+Current functionality is limited, and future versions will include a more comprehensive stack via the n8n node architecture.
+
 ## Project Overview
 
-Data Compose is a web application that integrates with n8n (a workflow automation tool) to process and transform data through AI-powered workflows. The application features a Docker-based architecture with a web frontend, n8n workflow engine, and PostgreSQL database, enhanced with custom n8n nodes for DeepSeek AI model integration.
+Data Compose is a simple web application that integrates with n8n (a workflow automation tool) to process and enhance large scale textual data through scripted AI-powered workflows. The application features a Docker-based architecture with a typescript web frontend, n8n workflow engine, and PostgreSQL database for image persistance. Future versions will be geared towards a Judicial Access Project, which will prioritize extracting causal context from judicial transcripts.
+
+
+## Quick Start
+
+**Recommended starting point:** Linux-based terminal/WSL
+Ensure **Docker and git** are installed
+	→ docker desktop automatically installs docker engine (**recommended**)
+
+In either the macOS terminal, Linux terminal, or WSL run the following to confirm necessary downloads:
+```
+docker version
+```
+```
+Git version
+```
+
+*** Clone the Codebase:***
+Navigate to the folder where you want to manage this software, and run:
+
+```
+git clone https://github.com/Code4me2/data-compose.git
+```
+**configure `.env` variables with the basic format**
+```
+cd data_compose
+cp .env.example .env
+```
+** Start Docker Compose** to initialize the application
+Docker compose up -d
+```
+
+Navigate to http://localhost:8080  in your device’s browser to access the data_compose home webpage UI.
+
+To access the workflows that the UI offers, navigate to http://localhost:5678 and create your n8n account. Navigate to the home window and create a new workflow:
+
+image_of_interface 
+
+## Setup Application Workflow Testing:
+
+From the workflow window, select the button with three dots in the top right corner, and choose the option: `import from file`
+
+Select your workflow from the workflow_json folder within data_compose.
+
 
 ## Architecture
 
@@ -72,7 +123,7 @@ data_compose/
 The project uses environment variables stored in `.env`:
 
 ```bash
-DB_USER=vel
+DB_USER=your_username
 DB_PASSWORD=your_secure_password_here
 DB_NAME=mydb
 N8N_ENCRYPTION_KEY=a_random_secure_encryption_key_here
@@ -467,13 +518,3 @@ cd n8n/custom-nodes/n8n-nodes-deepseek
 npm run build
 docker-compose restart n8n
 ```
-
-## Project Status
-
-This is a **working implementation** with:
-- Functional AI chat interface
-- Working DeepSeek integration node
-- Complete Docker orchestration
-- Real-time webhook communication
-
-The project demonstrates a full-stack integration of web frontend, workflow automation, and AI processing capabilities.
