@@ -153,7 +153,20 @@ class DataComposeApp {
                 })
             });
             
-            const responseText = await response.text();
+            // Check if response is JSON or plain text
+            const contentType = response.headers.get('content-type');
+            let responseText;
+            
+            if (contentType && contentType.includes('application/json')) {
+                // Handle JSON response
+                const jsonData = await response.json();
+                // Extract text from JSON - adjust based on your n8n output structure
+                responseText = jsonData.response || jsonData.output || jsonData.message || JSON.stringify(jsonData);
+            } else {
+                // Handle plain text response
+                responseText = await response.text();
+            }
+            
             this.updateChatStatus('');
             this.addMessage(responseText);
             
@@ -246,6 +259,23 @@ document.addEventListener('DOMContentLoaded', () => {
 // Global functions for backwards compatibility and inline handlers
 function testConnection() {
     window.app.testN8nConnection();
+}
+
+function handleRecursiveSummary() {
+    const resultBox = document.getElementById('recursive-summary-result');
+    
+    // Show the result box
+    resultBox.classList.remove('hidden');
+    resultBox.innerHTML = '<p class="loading">Processing recursive summary...</p>';
+    
+    // Simulate recursive summary generation (replace with actual implementation)
+    setTimeout(() => {
+        resultBox.innerHTML = `
+            <h3>Recursive Summary Generated</h3>
+            <p>This feature will generate recursive summaries of your data using AI-powered analysis.</p>
+            <p class="text-muted">Implementation coming soon - connect this to your n8n workflow!</p>
+        `;
+    }, 1500);
 }
 
 function sendMessage() {
