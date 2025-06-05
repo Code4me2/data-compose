@@ -1,0 +1,173 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "c188c31c-1c45-4118-9ece-5b6057ab5177",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        440,
+        420
+      ],
+      "id": "2af79d32-af65-4faa-906d-68c204d7cf53",
+      "name": "Webhook",
+      "webhookId": "c188c31c-1c45-4118-9ece-5b6057ab5177"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.response }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        1460,
+        420
+      ],
+      "id": "77bb4c40-b10a-472d-8a9d-b5437a818690",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Post-HTTP Request Node - Enhanced with detailed logging\nconst inputData = items[0].json;\n\n// Log the full response received from DeepSeek\nconsole.log(\"RAW DEEPSEEK RESPONSE:\", JSON.stringify(inputData, null, 2).substring(0, 500) + \"...\");\n\ntry {\n  // Extract the thinking portion if it exists\n  const thinkingMatch = /\\<think\\>([\\s\\S]*?)\\<\\/think\\>/.exec(inputData.response);\n  const thinking = thinkingMatch ? thinkingMatch[1].trim() : \"\";\n  \n  // Log whether thinking tags were found\n  if (thinking) {\n    console.log(\"THINKING TAGS FOUND - EXTRACTED THINKING:\", thinking.substring(0, 100) + \"...\");\n  } else {\n    console.log(\"NO THINKING TAGS FOUND IN RESPONSE\");\n  }\n  \n  // Extract the main response without the thinking tags\n  const mainResponse = inputData.response.replace(/\\<think\\>[\\s\\S]*?\\<\\/think\\>/g, \"\").trim();\n  console.log(\"MAIN RESPONSE EXTRACTED:\", mainResponse.substring(0, 100) + \"...\");\n  \n  // Create a properly formatted response object\n  const result = {\n    success: true,\n    response: mainResponse,\n    thinking: thinking,\n    model: inputData.model || \"deepseek-r1:1.5b\"\n  };\n  \n  // Assign to items and log final output\n  items[0].json = result;\n  console.log(\"FINAL PROCESSED OUTPUT:\", JSON.stringify({\n    success: result.success,\n    responseLength: result.response.length,\n    thinkingLength: result.thinking.length,\n    model: result.model\n  }, null, 2));\n  \n} catch (error) {\n  // Log detailed error information\n  console.log(\"ERROR PROCESSING RESPONSE:\", error.message);\n  console.log(\"ERROR STACK:\", error.stack);\n  console.log(\"RESPONSE THAT CAUSED ERROR:\", typeof inputData.response, \n    inputData.response ? inputData.response.substring(0, 100) : \"undefined or null\");\n  \n  // Return a valid error response\n  items[0].json = {\n    success: false,\n    error: `Failed to process response: ${error.message}`\n  };\n  console.log(\"ERROR RESPONSE RETURNED\");\n}\n\nreturn items;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1220,
+        420
+      ],
+      "id": "9948deac-6601-4d48-8e16-87bb921aec0b",
+      "name": "Post Processing"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Change this in your pre-HTTP request code node\nconst items = $input.all();\nlet userMessage = \"No message found\";\n\n// Process message as before\nif (items[0].json.body && items[0].json.body.message) {\n  userMessage = items[0].json.body.message;\n} else if (items[0].json.message) {\n  userMessage = items[0].json.message;\n}\n\nconsole.log(\"MESSAGE EXTRACTED:\", userMessage);\n\nreturn [\n  {\n    json: {\n      ollama_payload: {\n        model: \"deepseek-r1:1.5b\",\n        prompt: String(userMessage),\n        stream: true  // Changed from false to true!\n      }\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        420
+      ],
+      "id": "df800da6-cdbd-41b4-a004-cda06f0d26f2",
+      "name": "Query submission"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"deepseek-r1:1.5b\",\n  \"prompt\": \"{{$json.ollama_payload.prompt}}\",\n  \"stream\": false\n}",
+        "options": {
+          "batching": {
+            "batch": {}
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        140
+      ],
+      "id": "e1976b70-44e2-4026-970b-92cd7d0c3b9b",
+      "name": "deepseek call"
+    },
+    {
+      "parameters": {
+        "operation": "chat",
+        "message": "={{ $json.ollama_payload.prompt }}",
+        "showThinking": true
+      },
+      "type": "CUSTOM.dsr1",
+      "typeVersion": 1,
+      "position": [
+        960,
+        420
+      ],
+      "id": "d8b37ffa-ef6e-4e05-bc16-f0ca58092ee8",
+      "name": "DeepSeek R11"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        900,
+        660
+      ],
+      "id": "09883720-54a0-45e7-ba69-874f10035300",
+      "name": "AI Agent"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Query submission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Processing": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query submission": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek R11",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek R11": {
+      "main": [
+        [
+          {
+            "node": "Post Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "b85105d192092490d47e1bb9094bd7d6d4fe52d877290d0b7cf754ae341fdd3a"
+  }
+}
