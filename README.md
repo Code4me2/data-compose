@@ -1,6 +1,6 @@
 # Data Compose
 
-A sophisticated web application that integrates workflow automation (n8n) with AI capabilities for processing and analyzing large-scale textual data, with a focus on judicial and legal document processing.
+A basic web application that integrates workflow automation (n8n) with AI capabilities for processing and analyzing large-scale textual data, with a focus on judicial and legal document processing.
 
 ## Quick Start
 
@@ -45,7 +45,7 @@ Navigate to the "AI Chat" tab in the web interface and start chatting!
 
 Data Compose combines multiple technologies to create a powerful document processing platform:
 - **n8n** workflow automation engine with custom AI nodes
-- **DeepSeek R1** AI model integration via Ollama
+- **DeepSeek R1** AI model integration via Ollama (not supported via WSL yet!)
 - **Elasticsearch** and **Haystack** for advanced document search and analysis
 - Modern **Single Page Application** frontend
 - **Docker-based** microservices architecture
