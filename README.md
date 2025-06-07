@@ -1,7 +1,6 @@
 # Data Compose
 
-A basic web application that integrates workflow automation (n8n) with AI capabilities for processing and analyzing large-scale textual data, with a focus on judicial and legal document processing.
-
+A basic web application that integrates workflow automation (n8n) with AI capabilities for processing and analyzing large-scale textual data, with a focus on judicial and legal document processing. n8n works as a backend and developer interface for testing workflows and custom nodes. 
 ## Quick Start
 
 ### Prerequisites
