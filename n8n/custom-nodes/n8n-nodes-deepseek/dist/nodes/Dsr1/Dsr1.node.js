@@ -12,8 +12,8 @@ class Dsr1 {
             defaults: {
                 name: 'DeepSeek R1',
             },
-            inputs: ['main'],
-            outputs: ['main'],
+            inputs: ["main"],
+            outputs: ["main"],
             properties: [
                 {
                     displayName: 'Operation',
@@ -80,14 +80,13 @@ class Dsr1 {
                     displayName: 'Endpoint URL',
                     name: 'endpointUrl',
                     type: 'string',
-                    default: 'http://host.docker.internal:11434/api/chat',
+                    default: 'http://host.docker.internal:11434/api/generate',
                     description: 'URL of the Ollama API endpoint',
                 },
             ],
         };
     }
     async execute() {
-        var _a;
         const items = this.getInputData();
         const returnData = [];
         for (let i = 0; i < items.length; i++) {
@@ -114,12 +113,7 @@ class Dsr1 {
                     },
                     body: JSON.stringify({
                         model: 'deepseek-r1:1.5b',
-                        messages: [
-                            {
-                                role: 'user',
-                                content: prompt
-                            }
-                        ],
+                        prompt: prompt,
                         temperature: temperature,
                         max_tokens: maxTokens,
                         stream: false,
@@ -130,7 +124,7 @@ class Dsr1 {
                 }
                 const data = await response.json();
                 let thinking = '';
-                let result = ((_a = data.message) === null || _a === void 0 ? void 0 : _a.content) || data.response || '';
+                let result = data.response || '';
                 const thinkMatch = result.match(/<think>([\s\S]*?)<\/think>/);
                 if (thinkMatch) {
                     thinking = thinkMatch[1].trim();

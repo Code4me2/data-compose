@@ -46,7 +46,7 @@ Navigate to the "AI Chat" tab in the web interface and start chatting!
 Data Compose combines multiple technologies to create a powerful document processing platform:
 - **n8n** workflow automation engine with custom AI nodes
 - **DeepSeek R1** AI model integration via Ollama
-- **Elasticsearch** and **Haystack** for advanced document search and analysis
+- **Elasticsearch** and **Haystack-inspired** API for advanced document search and analysis
 - Modern **Single Page Application** frontend
 - **Docker-based** microservices architecture
 
@@ -59,10 +59,11 @@ Data Compose combines multiple technologies to create a powerful document proces
 - Context-aware responses
 
 ### 📄 Document Processing (Haystack Integration)
-- 4-level document hierarchy system
-- Hybrid search (BM25 + Vector embeddings)
-- Legal document optimization
-- Batch processing capabilities
+- 4-level document hierarchy with parent-child relationships
+- Hybrid search (BM25 + 384-dimensional vector embeddings)
+- Production-ready with atomic updates and race condition prevention
+- 7 operations for complete document lifecycle management
+- Memory-safe batch processing (50 docs/batch, 50MB limit)
 
 ### 🔄 Workflow Automation
 - Visual workflow creation with n8n
@@ -96,9 +97,10 @@ Data Compose combines multiple technologies to create a powerful document proces
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                          Optional Haystack Integration                           │
 ├─────────────────────────┬───────────────────────────────────────────────────────┤
-│   Elasticsearch         │              Haystack API                              │
+│   Elasticsearch         │              Haystack Service                           │
 │   (Port 9200)          │              (Port 8000)                               │
 │   Document Storage      │              FastAPI REST Service                      │
+│   384-dim embeddings    │              7 Document Operations                     │
 └─────────────────────────┴───────────────────────────────────────────────────────┘
 ```
 
@@ -361,32 +363,67 @@ const CONFIG = {
 
 ### Haystack Integration (Optional)
 
-Enable advanced document processing:
+The Haystack integration provides enterprise-grade document processing with hierarchical analysis, recursive summarization, and advanced search capabilities. It's specifically optimized for legal document processing with a 4-level hierarchy system.
+
+#### Key Features:
+- **Hierarchical Document Processing**: 4-level document hierarchy with parent-child relationships
+- **Advanced Search**: Hybrid search combining BM25 and 384-dimensional vector embeddings
+- **Recursive Summarization**: Automated document chunking, summarization, and aggregation
+- **Production-Ready**: Atomic status updates, race condition prevention, memory-safe batch operations
+- **7 Operations**: Ingest, Search, Get Hierarchy, Health Check, Get By Stage, Update Status, Batch Hierarchy
+
+#### Starting Haystack Services:
 
 ```bash
 # Start with Haystack services
 docker-compose -f docker-compose.yml -f n8n/docker-compose.haystack.yml up -d
 
-# Or use the convenience script
+# Or use the convenience script (recommended)
 cd n8n && ./start_haystack_services.sh
 ```
 
-Access Haystack API documentation at http://localhost:8000/docs
+#### Using in n8n Workflows:
 
-### Document Processing API
+1. **Add Haystack Search node** to your workflow
+2. **Configure operation** (e.g., Ingest Documents, Search, Get By Stage)
+3. **Connect to other nodes** for document processing pipelines
 
-Example usage:
+Example workflow pattern for recursive summarization:
+```
+Upload Document → Ingest → Chunk → Get By Stage → AI Summarize → Update Status → Aggregate
+```
+
+#### API Endpoints:
+
+- **Haystack API Docs**: http://localhost:8000/docs
+- **Elasticsearch**: http://localhost:9200
+- **Health Check**: http://localhost:8000/health
+
+#### Example Usage:
+
 ```bash
-# Ingest documents
+# Ingest document with hierarchy
 curl -X POST http://localhost:8000/ingest \
   -H "Content-Type: application/json" \
-  -d '[{"content": "Legal document text", "metadata": {"source": "case.pdf"}}]'
+  -d '[{
+    "content": "Legal document text",
+    "metadata": {"source": "case.pdf"},
+    "document_type": "source_document",
+    "hierarchy_level": 0
+  }]'
 
-# Search documents
+# Search with hybrid mode (BM25 + vectors)
 curl -X POST http://localhost:8000/search \
   -H "Content-Type: application/json" \
-  -d '{"query": "legal precedent", "use_hybrid": true}'
+  -d '{"query": "legal precedent", "use_hybrid": true, "top_k": 10}'
+
+# Get documents ready for processing
+curl -X POST http://localhost:8000/get_by_stage \
+  -H "Content-Type: application/json" \
+  -d '{"stage_type": "ready_summarize", "hierarchy_level": 1}'
 ```
+
+For detailed documentation, see `n8n/haystack_readme.md`
 
 ## Troubleshooting
 

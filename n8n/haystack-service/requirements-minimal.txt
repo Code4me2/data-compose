@@ -1,0 +1,9 @@
+haystack-ai>=2.7.0
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+elasticsearch>=8.9.0
+httpx>=0.25.0
+sentence-transformers>=2.2.2
+psutil>=5.9.0

@@ -3,6 +3,7 @@ import {
   INodeExecutionData,
   INodeType,
   INodeTypeDescription,
+  NodeConnectionType,
 } from 'n8n-workflow';
 
 export class Dsr1 implements INodeType {
@@ -15,8 +16,8 @@ export class Dsr1 implements INodeType {
     defaults: {
       name: 'DeepSeek R1',
     },
-    inputs: ['main'],
-    outputs: ['main'],
+    inputs: [NodeConnectionType.Main],
+    outputs: [NodeConnectionType.Main],
     properties: [
       {
         displayName: 'Operation',

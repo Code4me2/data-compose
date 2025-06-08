@@ -1,0 +1,419 @@
+# docker-compose.yml - Complete development environment
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.1
+    container_name: elasticsearch-judicial
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+      - http.host=0.0.0.0
+      - transport.host=localhost
+      - network.host=0.0.0.0
+      - cluster.name=judicial-cluster
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - judicial-network
+
+  haystack-service:
+    build:
+      context: ./haystack-service
+      dockerfile: Dockerfile
+    container_name: haystack-judicial
+    ports:
+      - "8000:8000"
+    environment:
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./haystack-service:/app
+    networks:
+      - judicial-network
+    restart: unless-stopped
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n-judicial
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./custom-nodes:/home/node/.n8n/custom
+    depends_on:
+      - haystack-service
+    networks:
+      - judicial-network
+    restart: unless-stopped
+
+volumes:
+  elasticsearch_data:
+    driver: local
+  n8n_data:
+    driver: local
+
+networks:
+  judicial-network:
+    driver: bridge
+
+---
+# requirements.txt - Python dependencies
+haystack-ai>=2.7.0
+haystack-integrations[elasticsearch]>=0.10.0
+sentence-transformers>=2.2.2
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+elasticsearch>=8.9.0
+httpx>=0.25.0
+numpy>=1.24.0
+torch>=2.0.0
+
+---
+# Dockerfile - Haystack service container
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download the model during build to avoid startup delays
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-en-v1.5')"
+
+# Copy application code
+COPY . .
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the application
+CMD ["uvicorn", "haystack_service:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+---
+# elasticsearch_setup.py - Index configuration script
+import requests
+import json
+import time
+
+def wait_for_elasticsearch(host="http://localhost:9200", max_retries=30):
+    """Wait for Elasticsearch to be ready"""
+    for i in range(max_retries):
+        try:
+            response = requests.get(f"{host}/_cluster/health")
+            if response.status_code == 200:
+                print("✅ Elasticsearch is ready")
+                return True
+        except requests.exceptions.ConnectionError:
+            pass
+        
+        print(f"⏳ Waiting for Elasticsearch... ({i+1}/{max_retries})")
+        time.sleep(2)
+    
+    raise Exception("❌ Elasticsearch is not responding")
+
+def create_index(host="http://localhost:9200"):
+    """Create the judicial documents index with proper mapping"""
+    
+    index_mapping = {
+        "settings": {
+            "number_of_shards": 1,
+            "number_of_replicas": 0,
+            "index": {
+                "refresh_interval": "1s"
+            },
+            "analysis": {
+                "analyzer": {
+                    "legal_analyzer": {
+                        "type": "standard",
+                        "stopwords": "_english_"
+                    }
+                }
+            }
+        },
+        "mappings": {
+            "properties": {
+                "content": {
+                    "type": "text",
+                    "analyzer": "legal_analyzer",
+                    "fields": {
+                        "keyword": {
+                            "type": "keyword",
+                            "ignore_above": 256
+                        }
+                    }
+                },
+                "embedding": {
+                    "type": "dense_vector",
+                    "dims": 384,
+                    "index": True,
+                    "similarity": "cosine",
+                    "index_options": {
+                        "type": "hnsw",
+                        "m": 16,
+                        "ef_construction": 200
+                    }
+                },
+                "document_type": {
+                    "type": "keyword"
+                },
+                "document_id": {
+                    "type": "keyword"
+                },
+                "hierarchy": {
+                    "type": "object",
+                    "properties": {
+                        "level": {"type": "integer"},
+                        "parent_id": {"type": "keyword"},
+                        "children_ids": {"type": "keyword"},
+                        "path": {"type": "keyword"}
+                    }
+                },
+                "metadata": {
+                    "type": "object",
+                    "dynamic": True,
+                    "properties": {
+                        "source": {"type": "keyword"},
+                        "timestamp": {"type": "date"},
+                        "file_path": {"type": "keyword"},
+                        "page_number": {"type": "integer"},
+                        "chunk_index": {"type": "integer"}
+                    }
+                },
+                "ingestion_timestamp": {
+                    "type": "date"
+                }
+            }
+        }
+    }
+    
+    # Delete existing index if it exists
+    try:
+        response = requests.delete(f"{host}/judicial-documents")
+        if response.status_code == 200:
+            print("🗑️  Deleted existing index")
+    except:
+        pass
+    
+    # Create new index
+    response = requests.put(
+        f"{host}/judicial-documents",
+        headers={"Content-Type": "application/json"},
+        data=json.dumps(index_mapping)
+    )
+    
+    if response.status_code == 200:
+        print("✅ Created judicial-documents index")
+        print(f"📋 Index details: {response.json()}")
+    else:
+        print(f"❌ Failed to create index: {response.status_code} - {response.text}")
+        raise Exception("Index creation failed")
+
+if __name__ == "__main__":
+    print("🚀 Setting up Elasticsearch for Judicial Access...")
+    wait_for_elasticsearch()
+    create_index()
+    print("✅ Elasticsearch setup complete!")
+
+---
+# start_development.sh - Development startup script
+#!/bin/bash
+
+echo "🚀 Starting Judicial Access Development Environment"
+
+# Check if Docker is running
+if ! docker info > /dev/null 2>&1; then
+    echo "❌ Docker is not running. Please start Docker first."
+    exit 1
+fi
+
+# Stop any existing containers
+echo "🛑 Stopping existing containers..."
+docker-compose down
+
+# Start the services
+echo "📦 Starting services..."
+docker-compose up -d
+
+# Wait for services to be ready
+echo "⏳ Waiting for services to start..."
+sleep 10
+
+# Setup Elasticsearch index
+echo "🔧 Setting up Elasticsearch index..."
+python elasticsearch_setup.py
+
+# Check service health
+echo "🏥 Checking service health..."
+echo "Elasticsearch:" 
+curl -s http://localhost:9200/_cluster/health | jq '.'
+echo -e "\nHaystack Service:"
+curl -s http://localhost:8000/health | jq '.'
+
+echo "✅ Development environment is ready!"
+echo "🌐 n8n UI: http://localhost:5678"
+echo "🔍 Elasticsearch: http://localhost:9200"
+echo "🤖 Haystack API: http://localhost:8000"
+echo "📚 API docs: http://localhost:8000/docs"
+
+---
+# test_integration.py - Integration test script
+import requests
+import json
+import time
+
+def test_haystack_service():
+    """Test the Haystack service integration"""
+    base_url = "http://localhost:8000"
+    
+    print("🧪 Testing Haystack Elasticsearch Integration")
+    
+    # Test health endpoint
+    print("1. Testing health endpoint...")
+    response = requests.get(f"{base_url}/health")
+    assert response.status_code == 200
+    health_data = response.json()
+    print(f"   ✅ Health check: {health_data['status']}")
+    print(f"   📊 Documents indexed: {health_data.get('documents_indexed', 0)}")
+    
+    # Test document ingestion
+    print("2. Testing document ingestion...")
+    test_documents = [
+        {
+            "content": "The Supreme Court ruled on the constitutional issue of due process in this landmark case.",
+            "metadata": {"source": "test_case.pdf", "page": 1},
+            "document_type": "source_document",
+            "hierarchy_level": 0
+        },
+        {
+            "content": "This chunk discusses the legal precedent established by the court's decision.",
+            "metadata": {"source": "test_case.pdf", "page": 1, "chunk_index": 1},
+            "document_type": "chunk",
+            "parent_id": "test-parent-id",
+            "hierarchy_level": 1
+        },
+        {
+            "content": "Summary: The case established important precedent regarding constitutional rights and due process protections.",
+            "metadata": {"summary_level": 2},
+            "document_type": "summary",
+            "parent_id": "test-chunk-id",
+            "hierarchy_level": 2
+        }
+    ]
+    
+    response = requests.post(
+        f"{base_url}/ingest",
+        headers={"Content-Type": "application/json"},
+        json=test_documents
+    )
+    assert response.status_code == 200
+    ingest_data = response.json()
+    print(f"   ✅ Ingested {ingest_data['documents_processed']} documents")
+    
+    # Wait for indexing to complete
+    time.sleep(2)
+    
+    # Test search functionality
+    print("3. Testing search functionality...")
+    search_query = {
+        "query": "constitutional rights due process",
+        "top_k": 5,
+        "use_hybrid": True,
+        "include_hierarchy": False
+    }
+    
+    response = requests.post(
+        f"{base_url}/search",
+        headers={"Content-Type": "application/json"},
+        json=search_query
+    )
+    assert response.status_code == 200
+    search_data = response.json()
+    print(f"   ✅ Found {search_data['total_results']} results")
+    print(f"   🔍 Search type: {search_data['search_type']}")
+    
+    if search_data['results']:
+        best_result = search_data['results'][0]
+        print(f"   📄 Best match score: {best_result['score']:.4f}")
+        print(f"   📝 Content preview: {best_result['content'][:100]}...")
+    
+    # Test hierarchy functionality
+    if search_data['results']:
+        print("4. Testing hierarchy functionality...")
+        document_id = search_data['results'][0]['metadata']['document_id']
+        
+        hierarchy_query = {
+            "document_id": document_id,
+            "include_parents": True,
+            "include_children": True,
+            "max_depth": 3
+        }
+        
+        response = requests.post(
+            f"{base_url}/hierarchy",
+            headers={"Content-Type": "application/json"},
+            json=hierarchy_query
+        )
+        assert response.status_code == 200
+        hierarchy_data = response.json()
+        print(f"   ✅ Retrieved hierarchy for document: {hierarchy_data['document_id']}")
+        print(f"   👨‍👩‍👧‍👦 Context keys: {list(hierarchy_data['context'].keys())}")
+    
+    print("🎉 All tests passed! Integration is working correctly.")
+
+if __name__ == "__main__":
+    try:
+        test_haystack_service()
+    except AssertionError as e:
+        print(f"❌ Test failed: {e}")
+    except Exception as e:
+        print(f"❌ Test error: {e}")
+
+---
+# .env.example - Environment variables template
+# Elasticsearch Configuration
+ELASTICSEARCH_HOST=http://elasticsearch:9200
+ELASTICSEARCH_INDEX=judicial-documents
+
+# Haystack Service Configuration
+HAYSTACK_SERVICE_HOST=http://haystack-service:8000
+HAYSTACK_MODEL=BAAI/bge-small-en-v1.5
+
+# n8n Configuration
+N8N_HOST=localhost
+N8N_PORT=5678
+N8N_PROTOCOL=http
+
+# Development Settings
+DEBUG=true
+LOG_LEVEL=INFO
+
+# Optional: API Authentication
+# API_KEY=your-api-key-here

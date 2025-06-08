@@ -17,32 +17,31 @@ The project is structured as a Docker-based application with three main services
 ```
 data_compose/
 ├── CLAUDE.md                  # Project documentation
+├── README.md                  # Public-facing documentation
 ├── docker-compose.yml         # Main Docker configuration
 ├── docker-compose.swarm.yml   # Docker Swarm configuration (for scaling)
-├── error.txt                  # Error log file
-├── update.txt                 # Update log file
+├── .env                       # Environment variables (gitignored)
+├── .env.example               # Template for environment configuration
 ├── nginx/
 │   └── conf.d/                # NGINX configuration
 │       └── default.conf       # Unified NGINX config
-├── website/                   # Frontend web assets
-│   ├── css/                   # CSS styles
-│   │   └── styles.css         # Shared styles
-│   ├── js/                    # JavaScript files
-│   │   ├── chat.js            # Chat functionality
-│   │   ├── config.js          # Frontend configuration
-│   │   └── debug.js           # Debugging utilities
-│   ├── views/                 # View templates
-│   │   ├── chat.html          # Chat interface
-│   │   └── workflows.html     # Workflows interface
-│   ├── favicon.ico            # Website favicon
-│   ├── index.html             # Main entry point
-│   └── test.html              # Test page
-└── n8n/                       # n8n configuration and extensions
-    ├── custom-nodes/          # Custom nodes for n8n
-    │   ├── n8n-nodes-deepseek/  # Deepseek integration node
-    │   │   ├── dist/            # Compiled node files
-    │   │   ├── nodes/           # Node source files
-    │   │   │   └── Dsr1/        # Deepseek node
+├── website/                   # Frontend web assets (Single Page Application)
+│   ├── css/
+│   │   ├── app.css           # Unified CSS framework with design system
+│   │   └── styles.css        # Legacy CSS (preserved but unused)
+│   ├── js/                   # JavaScript modules
+│   │   ├── app.js            # Extensible application framework
+│   │   └── config.js         # Frontend configuration (webhook URLs)
+│   ├── favicon.ico           # Website favicon
+│   └── index.html            # Single entry point with all functionality
+├── workflow_json/             # n8n workflow exports
+│   └── web_UI_basic          # Basic web UI workflow
+└── n8n/                      # n8n configuration and extensions
+    ├── custom-nodes/         # Custom nodes for n8n
+    │   ├── n8n-nodes-deepseek/  # DeepSeek AI integration node
+    │   │   ├── dist/            # Compiled TypeScript output
+    │   │   ├── nodes/           # TypeScript source files
+    │   │   │   └── Dsr1/        # DeepSeek R1 node
     │   │   │       └── Dsr1.node.ts  # Node implementation
     │   │   ├── gulpfile.js      # Build configuration
     │   │   ├── index.js         # Module entry point
@@ -50,10 +49,8 @@ data_compose/
     │   │   ├── package.json     # Node dependencies
     │   │   ├── package-lock.json # Locked dependencies
     │   │   └── tsconfig.json    # TypeScript configuration
-    │   ├── test-file.txt        # Test file
-    │   └── test-persistence.txt # Persistence test file
+    │   └── n8n-nodes-haystack/  # Haystack integration (built and functional)
     ├── docker-compose.yml     # n8n-specific Docker config
-    ├── docker-compose.yml.save # Backup Docker config
     └── local-files/           # Persistent local files for n8n
 ```
 
@@ -89,11 +86,11 @@ The NGINX server (`nginx/conf.d/default.conf`) is configured to:
 
 ## Web Frontend
 
-The web frontend provides three main interfaces:
+The web frontend is now a Single Page Application (SPA) with seamless navigation:
 
-1. **Home Page (index.html)**: Tests the connection to n8n
-2. **Chat Interface (views/chat.html)**: Provides a chat interface that communicates with n8n via webhooks
-3. **Workflows Interface (views/workflows.html)**: Displays n8n workflows and links to the n8n admin interface
+1. **Home Section**: Welcome page with system testing and feature overview
+2. **AI Chat Section**: Real-time chat interface with DeepSeek R1 via webhooks
+3. **Workflows Section**: n8n workflow management and monitoring
 
 ### Frontend Configuration
 
@@ -111,12 +108,41 @@ const CONFIG = {
 The project uses n8n for workflow automation. Key integration points:
 
 1. **Webhook Endpoints**: The application communicates with n8n via webhooks
-2. **Custom Nodes**: The project includes a custom n8n node for Deepseek integration
+2. **Custom Nodes**: The project includes a custom n8n node for DeepSeek integration
 3. **Workflow Storage**: Workflows are stored in the n8n data volume
+4. **Workflow Exports**: Pre-configured workflows available in `workflow_json/`
 
-## Recent Changes
+### Available Workflows
 
-The following changes have been made to improve the project:
+#### web_UI_basic
+Basic workflow that connects the web interface to the DeepSeek AI node:
+- Receives webhook requests from the frontend
+- Processes messages through the DeepSeek R1 node
+- Returns AI responses to the chat interface
+- Import via n8n interface: Menu → Import from file → Select `workflow_json/web_UI_basic`
+
+## Recent Changes and Improvements
+
+### Latest Session Updates
+
+1. **Frontend Architecture Transformation**:
+   - Converted multi-page site to Single Page Application (SPA)
+   - Eliminated ~150 lines of duplicated CSS across files
+   - Created extensible framework with section registration system
+   - Implemented tab-based navigation with smooth transitions
+
+2. **Documentation Overhaul**:
+   - Created comprehensive README.md with setup instructions
+   - Fixed formatting for optimal GitHub display
+   - Added troubleshooting guides and development workflows
+   - Documented all custom nodes and configurations
+
+3. **Workflow Management**:
+   - Added `workflow_json/` directory for workflow exports
+   - Created basic web UI workflow for chat functionality
+   - Documented workflow import process
+
+### Previous Improvements
 
 1. **Security Enhancements**:
    - Moved sensitive data to environment variables (.env file)
@@ -124,8 +150,8 @@ The following changes have been made to improve the project:
    - Improved NGINX proxy configuration
 
 2. **Code Organization**:
-   - Consolidated duplicate web files
-   - Created proper directory structure (css, js, views)
+   - Consolidated duplicate web files into single SPA
+   - Created proper directory structure (css, js)
    - Standardized naming conventions
 
 3. **Configuration Improvements**:
@@ -134,8 +160,8 @@ The following changes have been made to improve the project:
    - Improved docker-compose configuration
 
 4. **Interface Improvements**:
-   - Added navigation menu to web pages
-   - Standardized styling with shared CSS
+   - Implemented responsive design
+   - Created unified design system with CSS custom properties
    - Improved error handling and response display
 
 ## Future Considerations
@@ -155,8 +181,9 @@ Areas for future improvement:
    - Create build and testing pipelines
 
 4. **UI Enhancement**:
-   - Complete organization of views in the views directory
-   - Add responsive design for mobile compatibility
+   - Add more sections to the SPA (Settings, Dashboard, Help)
+   - Implement advanced chat features (history, conversation management)
+   - Add dark mode toggle using CSS custom properties
 
 ## Running the Application
 
@@ -176,6 +203,11 @@ To run the application:
 
 3. Access the web interface at `http://localhost:8080`
 4. Access the n8n interface at `http://localhost:8080/n8n/`
+5. Import the basic workflow:
+   - In n8n, click menu (three dots) → Import from file
+   - Select `workflow_json/web_UI_basic`
+   - Activate the workflow
+6. Test the chat interface in the "AI Chat" tab
 
 # Development Session Analysis and Discoveries
 
@@ -484,8 +516,131 @@ The DeepSeek node in n8n currently sends isolated messages without conversation 
    }
    ```
 3. **Update response parsing** (line 143): `data.message?.content || data.response`
-4. **Fix TypeScript errors**: Replace `inputs: ["main"]` and `outputs: ["main"]` with proper type definitions
+
+**Note**: TypeScript compilation issues have been fixed. The node now properly imports `NodeConnectionType` and uses it for inputs/outputs.
 
 **Alternative**: Modify frontend to maintain conversation history and send full context with each request (higher bandwidth, more complex).
 
 The `/api/chat` approach is the lower bandwidth, architecturally correct solution as Ollama handles conversation memory server-side.
+
+# DeepSeek Custom Node Details
+
+## Node Architecture
+
+The custom DeepSeek node (`n8n-nodes-deepseek`) provides AI integration capabilities:
+
+### Features
+- **Two Operations**: Generate Text and Chat modes
+- **Model**: DeepSeek-r1:1.5B via Ollama API
+- **Advanced Options**: Temperature, max tokens, thinking visibility
+- **Custom Endpoint**: Configurable Ollama server URL
+
+### Technical Implementation
+- **TypeScript Source**: `nodes/Dsr1/Dsr1.node.ts`
+- **Build System**: TypeScript + Gulp for assets
+- **API Endpoint**: `http://host.docker.internal:11434/api/generate`
+- **Response Processing**: Parses `<think>` tags for reasoning visibility
+
+### Development Commands
+```bash
+cd n8n/custom-nodes/n8n-nodes-deepseek
+npm run dev    # Watch mode
+npm run build  # Production build
+npm run lint   # Code quality
+```
+
+### Known Limitations
+1. Currently uses `/api/generate` endpoint (stateless)
+2. No conversation context between messages
+3. TypeScript type definitions need updating for latest n8n
+
+### Future Improvements
+1. Switch to `/api/chat` endpoint for conversation memory
+2. Add streaming response support
+3. Implement token usage tracking
+4. Add model selection dropdown
+
+# Haystack/Elasticsearch Integration
+
+## Overview
+
+The project includes a comprehensive document processing system using Elasticsearch and a Haystack-inspired implementation for AI-powered document analysis, specifically designed for legal documents.
+
+### Architecture
+
+1. **Elasticsearch Service** (Port 9200)
+   - Document storage with BM25 and vector search capabilities
+   - Custom legal document analyzer
+   - Hierarchical document tracking
+
+2. **Haystack API Service** (Port 8000)
+   - FastAPI-based REST API
+   - Document ingestion with embedding generation
+   - Hybrid search (BM25 + Vector)
+   - Document hierarchy management
+
+3. **Custom n8n Node** (`n8n-nodes-haystack`)
+   - Full integration with n8n workflows
+   - 10 Operations: Ingest, Search, Hierarchy, Health Check, Get By Stage, Update Status, Batch Hierarchy, Get Final Summary, Get Complete Tree, Get Document with Context
+
+### Important Implementation Note
+
+**Current Active Service**: `haystack_service_simple.py`
+- Uses direct Elasticsearch client (not full Haystack library)
+- Provides all documented features without Haystack dependencies
+- More reliable and maintainable than full Haystack integration
+- **10 endpoints** including tree navigation and workflow management
+- **10 operations** in the n8n node matching all service endpoints
+
+### Key Features
+
+1. **Document Hierarchy System**
+   - 4-level hierarchy: Source → Chunks → Intermediate Summaries → Final Summaries
+   - Parent-child relationship tracking
+   - Metadata preservation through all levels
+
+2. **Search Capabilities**
+   - **Hybrid Search**: Combines BM25 and vector search
+   - **Vector Search**: Using BAAI/bge-small-en-v1.5 embeddings
+   - **BM25 Search**: Traditional keyword search with legal analyzer
+
+3. **API Endpoints**
+   - `POST /ingest` - Batch document ingestion
+   - `POST /search` - Multi-modal search
+   - `POST /hierarchy` - Document relationship queries
+   - `GET /health` - Service status
+
+### Quick Test
+
+```bash
+# Check service health
+curl http://localhost:8000/health | jq
+
+# Ingest a test document
+curl -X POST http://localhost:8000/ingest \
+  -H "Content-Type: application/json" \
+  -d '[{"content": "Test legal document", "metadata": {"source": "test.pdf"}, "document_type": "source_document", "hierarchy_level": 0}]'
+
+# Search documents
+curl -X POST http://localhost:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "legal document", "top_k": 5, "use_hybrid": true}'
+```
+
+### Setup Commands
+
+```bash
+# From data_compose/ root directory
+# Start all services including Haystack
+docker-compose -f docker-compose.yml -f n8n/docker-compose.haystack.yml up -d
+
+# Or use the convenience script
+cd n8n && ./start_haystack_services.sh
+```
+
+### Documentation
+
+- Setup guide: `n8n/HAYSTACK_SETUP.md` (consolidated and updated)
+- Complete feature documentation: `n8n/haystack_readme.md`
+- API Documentation: http://localhost:8000/docs
+- Archived planning/development docs: `n8n/archived-docs/`

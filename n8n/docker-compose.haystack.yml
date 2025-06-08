@@ -1,0 +1,59 @@
+# Supplementary Docker Compose for Haystack and Elasticsearch services
+# Use with: docker-compose -f ../docker-compose.yml -f docker-compose.haystack.yml up -d
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.1
+    container_name: elasticsearch-judicial
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+      - http.host=0.0.0.0
+      - transport.host=localhost
+      - network.host=0.0.0.0
+      - cluster.name=judicial-cluster
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - backend
+
+  haystack-service:
+    build:
+      context: ./n8n/haystack-service
+      dockerfile: Dockerfile
+    container_name: haystack-judicial
+    ports:
+      - "8000:8000"
+    environment:
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./n8n/haystack-service:/app
+    networks:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  elasticsearch_data:
+    driver: local
+
+networks:
+  backend:
+    name: data_compose_backend
+    external: true
+  frontend:
+    name: data_compose_frontend
+    external: true

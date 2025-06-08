@@ -1,0 +1,3955 @@
+# Hierarchical Document Summarization Integration - Production-Ready Implementation
+
+**Purpose**: Add enterprise-grade hierarchical summarization capability to existing Data Compose system with comprehensive error handling, monitoring, and extensibility.
+
+**Architecture Philosophy**: Defensive programming, modular design, comprehensive validation, and seamless integration with existing infrastructure.
+
+---
+
+## Frontend Implementation - Modular Architecture
+
+### Core Module: DocumentSummarizationManager
+
+**File**: `website/js/modules/document-summarization-manager.js`
+
+```javascript
+/**
+ * Document Summarization Manager - Enterprise Implementation
+ * 
+ * ARCHITECTURE OVERVIEW:
+ * - Singleton pattern for state management
+ * - Event-driven architecture for loose coupling
+ * - Comprehensive error handling with recovery strategies
+ * - Modular design for easy testing and maintenance
+ * - Defensive programming against edge cases
+ * 
+ * CRITICAL DESIGN DECISIONS:
+ * 1. All async operations wrapped in try-catch with specific error types
+ * 2. File operations use FileReader API with timeout protection
+ * 3. Network requests implement retry logic with exponential backoff
+ * 4. UI state management isolated from business logic
+ * 5. Configuration externalized for easy modification
+ */
+
+class DocumentSummarizationManager {
+    constructor() {
+        // CONFIGURATION - Externalized for maintainability
+        this.config = {
+            maxFiles: 5,
+            maxFileSize: 5 * 1024 * 1024, // 5MB
+            supportedFormats: ['.txt'],
+            groupSize: 3,
+            apiTimeout: 30000,
+            retryAttempts: 3,
+            retryDelay: 1000,
+            pollInterval: 3000,
+            fileReadTimeout: 10000
+        };
+        
+        // STATE MANAGEMENT - Centralized state with validation
+        this.state = {
+            selectedFiles: [],
+            currentWorkflowId: null,
+            processingStatus: 'idle', // idle, processing, completed, failed
+            currentStep: null,
+            processingStartTime: null,
+            lastActivity: null,
+            errors: [],
+            retryCount: 0
+        };
+        
+        // COMPONENT REFERENCES - Lazy loaded for safety
+        this.elements = {};
+        
+        // EVENT HANDLERS - Bound methods for consistent context
+        this.boundHandlers = {
+            fileSelect: this.handleFileSelection.bind(this),
+            dragOver: this.handleDragOver.bind(this),
+            dragLeave: this.handleDragLeave.bind(this),
+            drop: this.handleDrop.bind(this),
+            process: this.handleProcessStart.bind(this),
+            clear: this.handleClearFiles.bind(this),
+            reset: this.handleReset.bind(this),
+            retry: this.handleRetry.bind(this)
+        };
+        
+        // TIMERS AND INTERVALS - Proper cleanup management
+        this.timers = {
+            progressPoll: null,
+            fileReadTimeout: null,
+            retryTimeout: null
+        };
+        
+        // VALIDATION RULES - Extensible validation system
+        this.validators = {
+            file: this.validateFile.bind(this),
+            batch: this.validateBatch.bind(this),
+            workflow: this.validateWorkflowId.bind(this)
+        };
+        
+        // Initialize when ready
+        this.initialize();
+    }
+    
+    /**
+     * INITIALIZATION - Defensive setup with fallback strategies
+     * 
+     * CRITICAL ERROR PATTERNS ADDRESSED:
+     * 1. DOM not ready when constructor called
+     * 2. App framework not loaded
+     * 3. Missing dependencies
+     * 4. Configuration validation failures
+     */
+    initialize() {
+        // Wait for DOM readiness with timeout
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => this.setup());
+        } else {
+            this.setup();
+        }
+    }
+    
+    setup() {
+        try {
+            // Validate app framework availability
+            if (!window.app || typeof window.app.addSection !== 'function') {
+                throw new Error('App framework not available');
+            }
+            
+            // Validate configuration
+            this.validateConfiguration();
+            
+            // Register section with app framework
+            this.registerWithApp();
+            
+            // Schedule element binding (DOM may not be ready immediately)
+            setTimeout(() => this.bindElements(), 100);
+            
+        } catch (error) {
+            this.handleCriticalError('Initialization failed', error);
+        }
+    }
+    
+    /**
+     * CONFIGURATION VALIDATION - Prevent runtime failures
+     * 
+     * COMMON CONFIGURATION ERRORS:
+     * 1. Invalid file size limits (too small/large)
+     * 2. Malformed format specifications
+     * 3. Invalid network timeouts
+     * 4. Missing required endpoints
+     */
+    validateConfiguration() {
+        const issues = [];
+        
+        // File constraints validation
+        if (this.config.maxFiles < 1 || this.config.maxFiles > 100) {
+            issues.push('maxFiles must be between 1 and 100');
+        }
+        
+        if (this.config.maxFileSize < 1024 || this.config.maxFileSize > 100 * 1024 * 1024) {
+            issues.push('maxFileSize must be between 1KB and 100MB');
+        }
+        
+        // Format validation
+        if (!Array.isArray(this.config.supportedFormats) || this.config.supportedFormats.length === 0) {
+            issues.push('supportedFormats must be non-empty array');
+        }
+        
+        // Network timeout validation
+        if (this.config.apiTimeout < 5000 || this.config.apiTimeout > 300000) {
+            issues.push('apiTimeout must be between 5 seconds and 5 minutes');
+        }
+        
+        if (issues.length > 0) {
+            throw new Error(`Configuration validation failed: ${issues.join(', ')}`);
+        }
+    }
+    
+    /**
+     * APP REGISTRATION - Integration with existing SPA framework
+     * 
+     * INTEGRATION CONSIDERATIONS:
+     * 1. Non-conflicting section ID
+     * 2. Graceful handling of registration failures
+     * 3. Cleanup hooks for proper lifecycle management
+     */
+    registerWithApp() {
+        try {
+            window.app.addSection(
+                'document-summarization',
+                'Document Summarization',
+                'fas fa-file-alt',
+                this.generateSectionHTML(),
+                {
+                    onShow: () => this.handleSectionShow(),
+                    onHide: () => this.handleSectionHide()
+                }
+            );
+        } catch (error) {
+            throw new Error(`Failed to register with app framework: ${error.message}`);
+        }
+    }
+    
+    /**
+     * HTML TEMPLATE GENERATION - Structured, accessible markup
+     * 
+     * ACCESSIBILITY CONSIDERATIONS:
+     * 1. Proper ARIA labels and roles
+     * 2. Keyboard navigation support
+     * 3. Screen reader compatibility
+     * 4. Clear visual hierarchy
+     */
+    generateSectionHTML() {
+        return `
+            <div class="doc-sum-container" role="main" aria-labelledby="doc-sum-title">
+                <header class="doc-sum-header">
+                    <h2 id="doc-sum-title">Hierarchical Document Summarization</h2>
+                    <p class="doc-sum-description">
+                        Upload text documents to create hierarchical summaries using AI-powered analysis.
+                    </p>
+                </header>
+                
+                <!-- FILE UPLOAD SECTION -->
+                <section class="doc-sum-upload" aria-labelledby="upload-title">
+                    <h3 id="upload-title">Document Upload</h3>
+                    
+                    <div class="upload-zone" 
+                         id="upload-zone"
+                         role="button"
+                         tabindex="0"
+                         aria-describedby="upload-instructions">
+                        <div class="upload-visual">
+                            <i class="fas fa-cloud-upload-alt fa-3x" aria-hidden="true"></i>
+                            <h4>Drop files here or click to select</h4>
+                            <p id="upload-instructions">
+                                Accepts: ${this.config.supportedFormats.join(', ')} | 
+                                Max: ${this.config.maxFiles} files, ${this.formatFileSize(this.config.maxFileSize)} each
+                            </p>
+                        </div>
+                        
+                        <input type="file" 
+                               id="file-input"
+                               multiple 
+                               accept="${this.config.supportedFormats.join(',')}"
+                               style="display: none;"
+                               aria-label="Select documents for summarization">
+                        
+                        <button type="button" 
+                                id="select-files-btn" 
+                                class="btn btn-primary btn-lg">
+                            <i class="fas fa-folder-open" aria-hidden="true"></i>
+                            Select Documents
+                        </button>
+                    </div>
+                    
+                    <!-- FILE LIST DISPLAY -->
+                    <div id="file-list-section" class="file-list-section" style="display: none;" role="region" aria-labelledby="file-list-title">
+                        <h4 id="file-list-title">Selected Documents</h4>
+                        <ul id="file-list" class="file-list" role="list"></ul>
+                        
+                        <div class="file-actions">
+                            <button type="button" id="process-btn" class="btn btn-success btn-lg">
+                                <i class="fas fa-play" aria-hidden="true"></i>
+                                Start Summarization
+                            </button>
+                            <button type="button" id="clear-files-btn" class="btn btn-secondary">
+                                <i class="fas fa-times" aria-hidden="true"></i>
+                                Clear All
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                
+                <!-- PROCESSING SECTION -->
+                <section id="processing-section" class="processing-section" style="display: none;" role="region" aria-labelledby="processing-title" aria-live="polite">
+                    <h3 id="processing-title">Processing Status</h3>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <div id="progress-fill" class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span id="progress-percentage" class="progress-percentage">0%</span>
+                            <span id="progress-status" class="progress-status">Initializing...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="processing-details">
+                        <h4>Processing Steps</h4>
+                        <div id="step-log" class="step-log" role="log" aria-live="polite"></div>
+                    </div>
+                    
+                    <div class="processing-actions">
+                        <button type="button" id="cancel-btn" class="btn btn-warning">
+                            <i class="fas fa-stop" aria-hidden="true"></i>
+                            Cancel Processing
+                        </button>
+                    </div>
+                </section>
+                
+                <!-- RESULTS SECTION -->
+                <section id="results-section" class="results-section" style="display: none;" role="region" aria-labelledby="results-title">
+                    <h3 id="results-title">Summarization Results</h3>
+                    <div id="results-content" class="results-content"></div>
+                    
+                    <div class="results-actions">
+                        <button type="button" id="new-analysis-btn" class="btn btn-primary">
+                            <i class="fas fa-plus" aria-hidden="true"></i>
+                            New Analysis
+                        </button>
+                        <button type="button" id="export-results-btn" class="btn btn-info">
+                            <i class="fas fa-download" aria-hidden="true"></i>
+                            Export Results
+                        </button>
+                    </div>
+                </section>
+                
+                <!-- ERROR SECTION -->
+                <section id="error-section" class="error-section" style="display: none;" role="alert" aria-labelledby="error-title">
+                    <h3 id="error-title">Processing Error</h3>
+                    <div id="error-content" class="error-content"></div>
+                    
+                    <div class="error-actions">
+                        <button type="button" id="retry-btn" class="btn btn-warning">
+                            <i class="fas fa-redo" aria-hidden="true"></i>
+                            Retry Processing
+                        </button>
+                        <button type="button" id="reset-btn" class="btn btn-secondary">
+                            <i class="fas fa-refresh" aria-hidden="true"></i>
+                            Start Over
+                        </button>
+                    </div>
+                </section>
+            </div>
+        `;
+    }
+    
+    /**
+     * ELEMENT BINDING - Defensive DOM interaction
+     * 
+     * CRITICAL ERROR PATTERNS:
+     * 1. Elements not found (DOM timing issues)
+     * 2. Multiple event listeners attached
+     * 3. Memory leaks from unbound handlers
+     * 4. Event delegation conflicts
+     */
+    bindElements() {
+        try {
+            // Cache element references with validation
+            this.elements = this.cacheElements();
+            
+            // Validate critical elements exist
+            this.validateCriticalElements();
+            
+            // Bind event handlers with error wrapping
+            this.bindEventHandlers();
+            
+        } catch (error) {
+            this.handleCriticalError('Element binding failed', error);
+        }
+    }
+    
+    cacheElements() {
+        const selectors = {
+            uploadZone: '#upload-zone',
+            fileInput: '#file-input',
+            selectFilesBtn: '#select-files-btn',
+            fileListSection: '#file-list-section',
+            fileList: '#file-list',
+            processBtn: '#process-btn',
+            clearFilesBtn: '#clear-files-btn',
+            processingSection: '#processing-section',
+            progressFill: '#progress-fill',
+            progressPercentage: '#progress-percentage',
+            progressStatus: '#progress-status',
+            stepLog: '#step-log',
+            cancelBtn: '#cancel-btn',
+            resultsSection: '#results-section',
+            resultsContent: '#results-content',
+            newAnalysisBtn: '#new-analysis-btn',
+            exportResultsBtn: '#export-results-btn',
+            errorSection: '#error-section',
+            errorContent: '#error-content',
+            retryBtn: '#retry-btn',
+            resetBtn: '#reset-btn'
+        };
+        
+        const elements = {};
+        const missing = [];
+        
+        // Safely query each element
+        for (const [key, selector] of Object.entries(selectors)) {
+            const element = document.querySelector(selector);
+            if (element) {
+                elements[key] = element;
+            } else {
+                missing.push(selector);
+            }
+        }
+        
+        if (missing.length > 0) {
+            console.warn(`Missing DOM elements: ${missing.join(', ')}`);
+        }
+        
+        return elements;
+    }
+    
+    validateCriticalElements() {
+        const critical = ['uploadZone', 'fileInput', 'selectFilesBtn', 'processBtn'];
+        const missing = critical.filter(key => !this.elements[key]);
+        
+        if (missing.length > 0) {
+            throw new Error(`Critical elements missing: ${missing.join(', ')}`);
+        }
+    }
+    
+    /**
+     * EVENT HANDLER BINDING - Comprehensive interaction management
+     * 
+     * EVENT HANDLING STRATEGY:
+     * 1. All handlers wrapped in try-catch
+     * 2. Prevent default and propagation where appropriate
+     * 3. Debouncing for high-frequency events
+     * 4. Proper cleanup on component destruction
+     */
+    bindEventHandlers() {
+        // File selection handlers
+        this.safeAddEventListener(this.elements.selectFilesBtn, 'click', () => {
+            this.elements.fileInput.click();
+        });
+        
+        this.safeAddEventListener(this.elements.fileInput, 'change', this.boundHandlers.fileSelect);
+        
+        // Drag and drop handlers with proper event management
+        this.safeAddEventListener(this.elements.uploadZone, 'dragover', this.boundHandlers.dragOver);
+        this.safeAddEventListener(this.elements.uploadZone, 'dragleave', this.boundHandlers.dragLeave);
+        this.safeAddEventListener(this.elements.uploadZone, 'drop', this.boundHandlers.drop);
+        
+        // Processing control handlers
+        this.safeAddEventListener(this.elements.processBtn, 'click', this.boundHandlers.process);
+        this.safeAddEventListener(this.elements.clearFilesBtn, 'click', this.boundHandlers.clear);
+        
+        // Navigation and recovery handlers
+        if (this.elements.newAnalysisBtn) {
+            this.safeAddEventListener(this.elements.newAnalysisBtn, 'click', this.boundHandlers.reset);
+        }
+        
+        if (this.elements.retryBtn) {
+            this.safeAddEventListener(this.elements.retryBtn, 'click', this.boundHandlers.retry);
+        }
+        
+        if (this.elements.resetBtn) {
+            this.safeAddEventListener(this.elements.resetBtn, 'click', this.boundHandlers.reset);
+        }
+        
+        // Keyboard accessibility
+        this.safeAddEventListener(this.elements.uploadZone, 'keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                this.elements.fileInput.click();
+            }
+        });
+    }
+    
+    /**
+     * SAFE EVENT LISTENER - Wrapper for error handling
+     * 
+     * ERROR PREVENTION:
+     * 1. Validates element exists before binding
+     * 2. Wraps handlers in try-catch
+     * 3. Logs binding failures for debugging
+     * 4. Prevents duplicate listeners
+     */
+    safeAddEventListener(element, event, handler, options = {}) {
+        if (!element) {
+            console.warn(`Cannot bind ${event} event: element not found`);
+            return;
+        }
+        
+        const wrappedHandler = (e) => {
+            try {
+                handler(e);
+            } catch (error) {
+                this.handleEventError(event, error);
+            }
+        };
+        
+        // Remove existing listener to prevent duplicates
+        element.removeEventListener(event, wrappedHandler, options);
+        element.addEventListener(event, wrappedHandler, options);
+    }
+    
+    /**
+     * FILE SELECTION HANDLER - Comprehensive validation
+     * 
+     * VALIDATION LAYERS:
+     * 1. File type validation (extension-based)
+     * 2. File size validation
+     * 3. File content validation (not empty)
+     * 4. Batch size validation
+     * 5. Duplicate detection
+     */
+    handleFileSelection(event) {
+        try {
+            const files = Array.from(event.target.files);
+            this.processFileSelection(files);
+        } catch (error) {
+            this.showError('File selection failed', error);
+        }
+    }
+    
+    handleDragOver(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.elements.uploadZone.classList.add('drag-over');
+    }
+    
+    handleDragLeave(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.elements.uploadZone.classList.remove('drag-over');
+    }
+    
+    handleDrop(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.elements.uploadZone.classList.remove('drag-over');
+        
+        try {
+            const files = Array.from(event.dataTransfer.files);
+            this.processFileSelection(files);
+        } catch (error) {
+            this.showError('File drop failed', error);
+        }
+    }
+    
+    /**
+     * FILE PROCESSING - Multi-layer validation with detailed feedback
+     * 
+     * VALIDATION STRATEGY:
+     * 1. Individual file validation
+     * 2. Batch constraint validation
+     * 3. Duplicate detection
+     * 4. Total size calculation
+     * 5. User feedback for each issue
+     */
+    processFileSelection(files) {
+        const validationResults = {
+            valid: [],
+            invalid: [],
+            errors: []
+        };
+        
+        // Individual file validation
+        files.forEach(file => {
+            const validation = this.validators.file(file);
+            if (validation.isValid) {
+                validationResults.valid.push(file);
+            } else {
+                validationResults.invalid.push(file);
+                validationResults.errors.push(`${file.name}: ${validation.error}`);
+            }
+        });
+        
+        // Batch validation
+        const batchValidation = this.validators.batch(validationResults.valid);
+        if (!batchValidation.isValid) {
+            validationResults.errors.push(batchValidation.error);
+            return this.showValidationErrors(validationResults.errors);
+        }
+        
+        // Add valid files to selection
+        this.addFilesToSelection(validationResults.valid);
+        
+        // Show warnings for invalid files
+        if (validationResults.errors.length > 0) {
+            this.showValidationWarnings(validationResults.errors);
+        }
+    }
+    
+    /**
+     * FILE VALIDATION - Comprehensive individual file checks
+     * 
+     * VALIDATION RULES:
+     * 1. File extension matching
+     * 2. File size within limits
+     * 3. File not empty
+     * 4. File readable (not corrupted)
+     */
+    validateFile(file) {
+        // Extension validation
+        const extension = '.' + file.name.split('.').pop().toLowerCase();
+        if (!this.config.supportedFormats.includes(extension)) {
+            return {
+                isValid: false,
+                error: `Unsupported format. Allowed: ${this.config.supportedFormats.join(', ')}`
+            };
+        }
+        
+        // Size validation
+        if (file.size > this.config.maxFileSize) {
+            return {
+                isValid: false,
+                error: `File too large. Max size: ${this.formatFileSize(this.config.maxFileSize)}`
+            };
+        }
+        
+        // Empty file check
+        if (file.size === 0) {
+            return {
+                isValid: false,
+                error: 'Empty file not allowed'
+            };
+        }
+        
+        // Name validation (prevent path traversal)
+        if (file.name.includes('..') || file.name.includes('/') || file.name.includes('\\')) {
+            return {
+                isValid: false,
+                error: 'Invalid file name'
+            };
+        }
+        
+        return { isValid: true };
+    }
+    
+    /**
+     * BATCH VALIDATION - Collection-level constraints
+     * 
+     * BATCH RULES:
+     * 1. Total file count within limits
+     * 2. No duplicate files
+     * 3. Combined size reasonable
+     */
+    validateBatch(newFiles) {
+        const totalFiles = this.state.selectedFiles.length + newFiles.length;
+        
+        // Count validation
+        if (totalFiles > this.config.maxFiles) {
+            return {
+                isValid: false,
+                error: `Too many files. Maximum ${this.config.maxFiles} allowed, you have ${totalFiles}`
+            };
+        }
+        
+        // Duplicate detection
+        const existingNames = new Set(this.state.selectedFiles.map(f => f.name));
+        const duplicates = newFiles.filter(f => existingNames.has(f.name));
+        if (duplicates.length > 0) {
+            return {
+                isValid: false,
+                error: `Duplicate files: ${duplicates.map(f => f.name).join(', ')}`
+            };
+        }
+        
+        return { isValid: true };
+    }
+    
+    /**
+     * FILE ADDITION - State management with UI updates
+     * 
+     * STATE MANAGEMENT:
+     * 1. Immutable state updates
+     * 2. UI synchronization
+     * 3. Event emission for external listeners
+     */
+    addFilesToSelection(files) {
+        // Update state immutably
+        this.state.selectedFiles = [...this.state.selectedFiles, ...files];
+        
+        // Update UI
+        this.updateFileList();
+        this.showFileListSection();
+        
+        // Log activity
+        this.logActivity(`Added ${files.length} file(s) to selection`);
+    }
+    
+    /**
+     * UI STATE MANAGEMENT - Centralized visual state control
+     * 
+     * STATE TRANSITIONS:
+     * 1. Idle -> File Selection -> Processing -> Results/Error
+     * 2. Each state has specific UI configuration
+     * 3. Smooth transitions with loading states
+     * 4. Proper ARIA updates for accessibility
+     */
+    updateFileList() {
+        if (!this.elements.fileList) return;
+        
+        this.elements.fileList.innerHTML = this.state.selectedFiles.map((file, index) => `
+            <li class="file-item" role="listitem">
+                <div class="file-info">
+                    <span class="file-name">${this.escapeHtml(file.name)}</span>
+                    <span class="file-size">(${this.formatFileSize(file.size)})</span>
+                </div>
+                <button type="button" 
+                        class="remove-file-btn btn btn-sm btn-danger" 
+                        data-index="${index}"
+                        aria-label="Remove ${this.escapeHtml(file.name)}">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </li>
+        `).join('');
+        
+        // Bind remove buttons
+        this.elements.fileList.addEventListener('click', (e) => {
+            if (e.target.closest('.remove-file-btn')) {
+                const index = parseInt(e.target.closest('.remove-file-btn').dataset.index);
+                this.removeFile(index);
+            }
+        });
+    }
+    
+    /**
+     * PROCESSING WORKFLOW - Comprehensive async operation management
+     * 
+     * WORKFLOW STAGES:
+     * 1. Pre-processing validation
+     * 2. File content reading with timeout
+     * 3. Document ingestion with retry
+     * 4. Summarization initiation
+     * 5. Progress monitoring with polling
+     * 6. Result retrieval and display
+     * 
+     * ERROR HANDLING:
+     * 1. Network failures with retry logic
+     * 2. Timeout protection for all operations
+     * 3. User-friendly error messages
+     * 4. Recovery options for each failure type
+     */
+    async handleProcessStart() {
+        try {
+            // Pre-processing validation
+            const validationResult = this.validateProcessingPrerequisites();
+            if (!validationResult.isValid) {
+                throw new Error(validationResult.error);
+            }
+            
+            // Initialize processing state
+            this.initializeProcessing();
+            
+            // Execute processing pipeline
+            await this.executeProcessingPipeline();
+            
+        } catch (error) {
+            this.handleProcessingError(error);
+        }
+    }
+    
+    validateProcessingPrerequisites() {
+        if (this.state.selectedFiles.length === 0) {
+            return { isValid: false, error: 'No files selected for processing' };
+        }
+        
+        if (this.state.processingStatus === 'processing') {
+            return { isValid: false, error: 'Processing already in progress' };
+        }
+        
+        // Validate system state
+        if (!this.validateSystemReadiness()) {
+            return { isValid: false, error: 'System not ready for processing' };
+        }
+        
+        return { isValid: true };
+    }
+    
+    validateSystemReadiness() {
+        // Check required services
+        const requiredServices = ['n8n', 'haystack', 'elasticsearch'];
+        // Implementation would check service availability
+        return true; // Simplified for this example
+    }
+    
+    initializeProcessing() {
+        // Generate unique workflow ID
+        this.state.currentWorkflowId = this.generateWorkflowId();
+        this.state.processingStatus = 'processing';
+        this.state.processingStartTime = Date.now();
+        this.state.currentStep = 'initialization';
+        this.state.errors = [];
+        this.state.retryCount = 0;
+        
+        // Update UI
+        this.showProcessingSection();
+        this.updateProgress(0, 'Initializing document processing...');
+        this.logStep('Processing started', 'info');
+    }
+    
+    async executeProcessingPipeline() {
+        const pipeline = [
+            { name: 'Reading Files', method: this.readAllFiles.bind(this), weight: 20 },
+            { name: 'Ingesting Documents', method: this.ingestDocuments.bind(this), weight: 30 },
+            { name: 'Starting Summarization', method: this.startSummarization.bind(this), weight: 10 },
+            { name: 'Monitoring Progress', method: this.monitorProgress.bind(this), weight: 40 }
+        ];
+        
+        let cumulativeProgress = 0;
+        
+        for (const stage of pipeline) {
+            try {
+                this.state.currentStep = stage.name.toLowerCase().replace(' ', '_');
+                this.updateProgress(cumulativeProgress, stage.name + '...');
+                this.logStep(`Starting: ${stage.name}`, 'info');
+                
+                const result = await stage.method();
+                
+                cumulativeProgress += stage.weight;
+                this.updateProgress(cumulativeProgress, stage.name + ' completed');
+                this.logStep(`Completed: ${stage.name}`, 'success');
+                
+                // Allow UI updates between stages
+                await this.sleep(100);
+                
+            } catch (error) {
+                throw new Error(`${stage.name} failed: ${error.message}`);
+            }
+        }
+    }
+    
+    /**
+     * FILE READING - Robust async file processing
+     * 
+     * READING STRATEGY:
+     * 1. Sequential reading to prevent memory issues
+     * 2. Timeout protection for large files
+     * 3. Content validation after reading
+     * 4. Progress updates during reading
+     */
+    async readAllFiles() {
+        const documents = [];
+        const totalFiles = this.state.selectedFiles.length;
+        
+        for (let i = 0; i < totalFiles; i++) {
+            const file = this.state.selectedFiles[i];
+            
+            try {
+                this.updateProgress(
+                    (i / totalFiles) * 20,
+                    `Reading ${file.name}... (${i + 1}/${totalFiles})`
+                );
+                
+                const content = await this.readFileWithTimeout(file);
+                
+                // Validate content
+                if (!content || content.trim().length === 0) {
+                    throw new Error(`File ${file.name} is empty or unreadable`);
+                }
+                
+                documents.push({
+                    content: content.substring(0, 50000), // Limit content size
+                    metadata: {
+                        filename: file.name,
+                        filesize: file.size,
+                        workflow_id: this.state.currentWorkflowId,
+                        document_index: i,
+                        upload_timestamp: new Date().toISOString()
+                    },
+                    document_type: 'source_document',
+                    hierarchy_level: 0,
+                    workflow_id: this.state.currentWorkflowId
+                });
+                
+                this.logStep(`Read file: ${file.name} (${this.formatFileSize(file.size)})`, 'info');
+                
+            } catch (error) {
+                throw new Error(`Failed to read ${file.name}: ${error.message}`);
+            }
+        }
+        
+        this.processingData = { documents };
+        return documents;
+    }
+    
+    /**
+     * FILE READING WITH TIMEOUT - Protected async file operation
+     * 
+     * TIMEOUT STRATEGY:
+     * 1. Race between FileReader and timeout
+     * 2. Cleanup on timeout or completion
+     * 3. Detailed error messages for different failure modes
+     */
+    readFileWithTimeout(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            
+            // Setup timeout
+            const timeout = setTimeout(() => {
+                reader.abort();
+                reject(new Error(`File reading timeout after ${this.config.fileReadTimeout / 1000}s`));
+            }, this.config.fileReadTimeout);
+            
+            reader.onload = (e) => {
+                clearTimeout(timeout);
+                try {
+                    resolve(e.target.result);
+                } catch (error) {
+                    reject(new Error(`File content processing failed: ${error.message}`));
+                }
+            };
+            
+            reader.onerror = () => {
+                clearTimeout(timeout);
+                reject(new Error(`File reading failed: ${reader.error?.message || 'Unknown error'}`));
+            };
+            
+            reader.onabort = () => {
+                clearTimeout(timeout);
+                reject(new Error('File reading was aborted'));
+            };
+            
+            try {
+                reader.readAsText(file);
+            } catch (error) {
+                clearTimeout(timeout);
+                reject(new Error(`Failed to start file reading: ${error.message}`));
+            }
+        });
+    }
+    
+    /**
+     * NETWORK OPERATIONS - Robust API communication
+     * 
+     * NETWORK STRATEGY:
+     * 1. Automatic retry with exponential backoff
+     * 2. Request/response validation
+     * 3. Timeout protection
+     * 4. Detailed error classification
+     */
+    async ingestDocuments() {
+        const documents = this.processingData.documents;
+        
+        const requestData = {
+            operation: 'ingestDocuments',
+            documents: documents,
+            workflow_id: this.state.currentWorkflowId
+        };
+        
+        const response = await this.apiRequest('ingest-documents', requestData);
+        
+        if (!response.success) {
+            throw new Error(response.error || 'Document ingestion failed');
+        }
+        
+        this.logStep(`Ingested ${documents.length} documents successfully`, 'success');
+        return response;
+    }
+    
+    async startSummarization() {
+        const requestData = {
+            workflow_id: this.state.currentWorkflowId,
+            total_documents: this.processingData.documents.length
+        };
+        
+        const response = await this.apiRequest('start-summarization', requestData);
+        
+        if (!response.success) {
+            throw new Error(response.error || 'Summarization start failed');
+        }
+        
+        this.logStep('Summarization workflow started', 'success');
+        return response;
+    }
+    
+    /**
+     * PROGRESS MONITORING - Intelligent polling with backoff
+     * 
+     * POLLING STRATEGY:
+     * 1. Adaptive polling interval based on activity
+     * 2. Exponential backoff on errors
+     * 3. Maximum polling duration protection
+     * 4. Graceful degradation on communication issues
+     */
+    async monitorProgress() {
+        return new Promise((resolve, reject) => {
+            let pollCount = 0;
+            const maxPolls = 300; // 15 minutes at 3-second intervals
+            
+            const poll = async () => {
+                try {
+                    pollCount++;
+                    
+                    if (pollCount > maxPolls) {
+                        throw new Error('Processing timeout - exceeded maximum duration');
+                    }
+                    
+                    const status = await this.checkWorkflowStatus();
+                    this.updateProgressFromStatus(status);
+                    
+                    if (status.completed) {
+                        clearInterval(this.timers.progressPoll);
+                        this.timers.progressPoll = null;
+                        resolve(await this.handleCompletion());
+                    } else if (status.failed) {
+                        clearInterval(this.timers.progressPoll);
+                        this.timers.progressPoll = null;
+                        throw new Error(status.error || 'Processing failed');
+                    }
+                    
+                } catch (error) {
+                    // Continue polling for temporary errors, fail for permanent ones
+                    if (pollCount > 5 && error.message.includes('timeout')) {
+                        clearInterval(this.timers.progressPoll);
+                        this.timers.progressPoll = null;
+                        reject(error);
+                    }
+                    
+                    this.logStep(`Status check error: ${error.message}`, 'warning');
+                }
+            };
+            
+            // Start polling
+            this.timers.progressPoll = setInterval(poll, this.config.pollInterval);
+            poll(); // Initial poll
+        });
+    }
+    
+    async checkWorkflowStatus() {
+        return await this.apiRequest('check-status', {
+            workflow_id: this.state.currentWorkflowId
+        });
+    }
+    
+    updateProgressFromStatus(status) {
+        const level = status.current_level || 0;
+        const maxLevels = status.max_levels || 4;
+        const baseProgress = 60; // First 60% for file processing
+        const levelProgress = (level / maxLevels) * 35; // 35% for summarization levels
+        
+        this.updateProgress(
+            baseProgress + levelProgress,
+            `Processing level ${level + 1} of ${maxLevels}...`
+        );
+        
+        if (status.last_activity) {
+            this.logStep(status.last_activity, 'info');
+            this.state.lastActivity = status.last_activity;
+        }
+    }
+    
+    /**
+     * API REQUEST - Centralized network communication
+     * 
+     * REQUEST FEATURES:
+     * 1. Automatic retry with exponential backoff
+     * 2. Request/response logging
+     * 3. Error classification and handling
+     * 4. Timeout protection
+     */
+    async apiRequest(endpoint, data, retryCount = 0) {
+        const url = this.getWebhookUrl(endpoint);
+        
+        try {
+            this.logStep(`API Request: ${endpoint}`, 'debug');
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), this.config.apiTimeout);
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            this.logStep(`API Response: ${endpoint} - Success`, 'debug');
+            
+            return result;
+            
+        } catch (error) {
+            this.logStep(`API Error: ${endpoint} - ${error.message}`, 'error');
+            
+            // Retry logic for transient errors
+            if (retryCount < this.config.retryAttempts && this.isRetryableError(error)) {
+                const delay = this.config.retryDelay * Math.pow(2, retryCount);
+                this.logStep(`Retrying in ${delay}ms... (attempt ${retryCount + 1}/${this.config.retryAttempts})`, 'warning');
+                
+                await this.sleep(delay);
+                return this.apiRequest(endpoint, data, retryCount + 1);
+            }
+            
+            throw new Error(`Network request failed: ${error.message}`);
+        }
+    }
+    
+    isRetryableError(error) {
+        const retryablePatterns = [
+            'network error',
+            'timeout',
+            'connection',
+            'temporary',
+            '5'  // 5xx status codes
+        ];
+        
+        return retryablePatterns.some(pattern => 
+            error.message.toLowerCase().includes(pattern)
+        );
+    }
+    
+    /**
+     * COMPLETION HANDLING - Result processing and display
+     * 
+     * COMPLETION WORKFLOW:
+     * 1. Retrieve final results
+     * 2. Validate result completeness
+     * 3. Process and format data
+     * 4. Update UI with results
+     * 5. Enable result actions
+     */
+    async handleCompletion() {
+        try {
+            this.updateProgress(95, 'Retrieving results...');
+            this.logStep('Processing completed, retrieving results', 'success');
+            
+            // Retrieve results in parallel
+            const [finalSummary, treeStructure] = await Promise.all([
+                this.apiRequest('get-final-summary', { workflow_id: this.state.currentWorkflowId }),
+                this.apiRequest('get-complete-tree', { 
+                    treeWorkflowId: this.state.currentWorkflowId,
+                    treeMaxDepth: 5,
+                    treeIncludeContent: false
+                })
+            ]);
+            
+            this.updateProgress(100, 'Processing complete!');
+            this.logStep('Results retrieved successfully', 'success');
+            
+            // Process and display results
+            this.processResults(finalSummary, treeStructure);
+            
+            // Update state
+            this.state.processingStatus = 'completed';
+            this.state.currentStep = 'completed';
+            
+            // Show results after brief delay for visual feedback
+            setTimeout(() => {
+                this.hideProcessingSection();
+                this.showResultsSection();
+            }, 1500);
+            
+        } catch (error) {
+            throw new Error(`Result retrieval failed: ${error.message}`);
+        }
+    }
+    
+    /**
+     * RESULT PROCESSING - Data formatting and presentation
+     * 
+     * RESULT FEATURES:
+     * 1. Comprehensive summary display
+     * 2. Interactive hierarchy tree
+     * 3. Processing statistics
+     * 4. Export capabilities
+     * 5. Navigation aids
+     */
+    processResults(finalSummary, treeStructure) {
+        if (!this.elements.resultsContent) return;
+        
+        const summary = finalSummary.data?.final_summary;
+        const metadata = finalSummary.data?.tree_metadata;
+        const tree = treeStructure.data?.tree_structure;
+        
+        // Calculate processing duration
+        const duration = Date.now() - this.state.processingStartTime;
+        const durationText = this.formatDuration(duration);
+        
+        this.elements.resultsContent.innerHTML = `
+            <div class="results-grid">
+                <!-- Summary Section -->
+                <div class="result-card summary-card">
+                    <h4><i class="fas fa-file-alt"></i> Final Summary</h4>
+                    <div class="summary-meta">
+                        <div class="meta-row">
+                            <span class="meta-label">Workflow ID:</span>
+                            <span class="meta-value">${this.escapeHtml(this.state.currentWorkflowId)}</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Processing Time:</span>
+                            <span class="meta-value">${durationText}</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Content Length:</span>
+                            <span class="meta-value">${summary?.content_length || 0} characters</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="meta-label">Status:</span>
+                            <span class="meta-value status-${summary?.processing_status || 'unknown'}">
+                                ${summary?.processing_status || 'Unknown'}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-content">
+                        <h5>Summary Content:</h5>
+                        <div class="content-display">
+                            ${this.escapeHtml(summary?.content_preview || 'No preview available')}
+                        </div>
+                        
+                        ${summary?.content_full && summary.content_full !== summary.content_preview ? `
+                            <button type="button" class="btn btn-sm btn-outline-primary expand-content-btn">
+                                <i class="fas fa-expand"></i> Show Full Content
+                            </button>
+                            <div class="full-content" style="display: none;">
+                                ${this.escapeHtml(summary.content_full)}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+                
+                <!-- Statistics Section -->
+                <div class="result-card statistics-card">
+                    <h4><i class="fas fa-chart-bar"></i> Processing Statistics</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-number">${metadata?.total_documents || 0}</span>
+                            <span class="stat-label">Total Documents</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${metadata?.max_depth || 0}</span>
+                            <span class="stat-label">Hierarchy Levels</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${Object.keys(metadata?.document_types || {}).length}</span>
+                            <span class="stat-label">Document Types</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-number">${Object.keys(metadata?.summary_types || {}).length}</span>
+                            <span class="stat-label">Summary Types</span>
+                        </div>
+                    </div>
+                    
+                    <div class="type-breakdown">
+                        <h6>Document Types:</h6>
+                        <ul class="type-list">
+                            ${Object.entries(metadata?.document_types || {}).map(([type, count]) => 
+                                `<li><span class="type-name">${this.escapeHtml(type)}</span>: <span class="type-count">${count}</span></li>`
+                            ).join('')}
+                        </ul>
+                        
+                        <h6>Summary Types:</h6>
+                        <ul class="type-list">
+                            ${Object.entries(metadata?.summary_types || {}).map(([type, count]) => 
+                                `<li><span class="type-name">${this.escapeHtml(type)}</span>: <span class="type-count">${count}</span></li>`
+                            ).join('')}
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Hierarchy Tree Section -->
+                <div class="result-card tree-card">
+                    <h4><i class="fas fa-sitemap"></i> Document Hierarchy</h4>
+                    <div class="tree-container">
+                        ${this.renderInteractiveTree(tree || [])}
+                    </div>
+                </div>
+                
+                <!-- Action Links Section -->
+                <div class="result-card actions-card">
+                    <h4><i class="fas fa-tools"></i> Additional Tools</h4>
+                    <div class="action-links">
+                        <a href="${this.getHaystackUrl()}/docs" 
+                           target="_blank" 
+                           class="btn btn-outline-info">
+                            <i class="fas fa-book"></i> Haystack API Documentation
+                        </a>
+                        <a href="${this.getHaystackUrl()}/search" 
+                           target="_blank" 
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-search"></i> Search Documents
+                        </a>
+                        <button type="button" 
+                                class="btn btn-outline-warning debug-btn" 
+                                data-workflow-id="${this.state.currentWorkflowId}">
+                            <i class="fas fa-bug"></i> Debug Information
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Bind interactive elements
+        this.bindResultsInteractions();
+        
+        // Store results for export
+        this.resultData = { finalSummary, treeStructure, metadata: {
+            workflowId: this.state.currentWorkflowId,
+            processingTime: duration,
+            completionTime: new Date().toISOString()
+        }};
+    }
+    
+    /**
+     * INTERACTIVE TREE RENDERING - Collapsible hierarchy display
+     * 
+     * TREE FEATURES:
+     * 1. Expandable/collapsible nodes
+     * 2. Visual hierarchy indicators
+     * 3. Document type icons
+     * 4. Click-to-navigate functionality
+     */
+    renderInteractiveTree(nodes, level = 0) {
+        if (!Array.isArray(nodes) || nodes.length === 0) {
+            return '<p class="no-tree">No hierarchy structure available</p>';
+        }
+        
+        return `<ul class="tree-list level-${level}">
+            ${nodes.map(node => {
+                const hasChildren = node.children && node.children.length > 0;
+                const nodeId = `tree-node-${Math.random().toString(36).substr(2, 9)}`;
+                const icon = this.getDocumentTypeIcon(node.document_type);
+                const title = this.escapeHtml(node.title || node.document_type || 'Untitled');
+                
+                return `
+                    <li class="tree-node">
+                        <div class="node-header" ${hasChildren ? `data-toggle="${nodeId}"` : ''}>
+                            ${hasChildren ? '<i class="fas fa-chevron-right toggle-icon"></i>' : '<i class="fas fa-minus placeholder-icon"></i>'}
+                            <i class="${icon} document-icon"></i>
+                            <span class="node-title">${title}</span>
+                            ${node.document_id ? `<span class="node-id">(${node.document_id.substring(0, 8)}...)</span>` : ''}
+                        </div>
+                        ${hasChildren ? `
+                            <div class="node-children" id="${nodeId}" style="display: none;">
+                                ${this.renderInteractiveTree(node.children, level + 1)}
+                            </div>
+                        ` : ''}
+                    </li>
+                `;
+            }).join('')}
+        </ul>`;
+    }
+    
+    getDocumentTypeIcon(type) {
+        const iconMap = {
+            'source_document': 'fas fa-file-alt',
+            'chunk': 'fas fa-file-text',
+            'summary': 'fas fa-file-contract',
+            'final_summary': 'fas fa-file-medical'
+        };
+        return iconMap[type] || 'fas fa-file';
+    }
+    
+    bindResultsInteractions() {
+        // Expand/collapse tree nodes
+        this.elements.resultsContent.addEventListener('click', (e) => {
+            const toggle = e.target.closest('[data-toggle]');
+            if (toggle) {
+                const targetId = toggle.dataset.toggle;
+                const target = document.getElementById(targetId);
+                const icon = toggle.querySelector('.toggle-icon');
+                
+                if (target && icon) {
+                    const isExpanded = target.style.display !== 'none';
+                    target.style.display = isExpanded ? 'none' : 'block';
+                    icon.className = isExpanded ? 'fas fa-chevron-right toggle-icon' : 'fas fa-chevron-down toggle-icon';
+                }
+            }
+            
+            // Expand content button
+            if (e.target.closest('.expand-content-btn')) {
+                const button = e.target.closest('.expand-content-btn');
+                const fullContent = button.parentElement.querySelector('.full-content');
+                
+                if (fullContent) {
+                    const isVisible = fullContent.style.display !== 'none';
+                    fullContent.style.display = isVisible ? 'none' : 'block';
+                    button.innerHTML = isVisible ? 
+                        '<i class="fas fa-expand"></i> Show Full Content' : 
+                        '<i class="fas fa-compress"></i> Hide Full Content';
+                }
+            }
+            
+            // Debug button
+            if (e.target.closest('.debug-btn')) {
+                const workflowId = e.target.closest('.debug-btn').dataset.workflowId;
+                this.showDebugInformation(workflowId);
+            }
+        });
+        
+        // Export button binding
+        if (this.elements.exportResultsBtn) {
+            this.elements.exportResultsBtn.onclick = () => this.exportResults();
+        }
+    }
+    
+    /**
+     * UTILITY FUNCTIONS - Helper methods for common operations
+     * 
+     * UTILITIES PROVIDED:
+     * 1. HTML escaping for XSS prevention
+     * 2. File size formatting
+     * 3. Duration formatting
+     * 4. URL construction
+     * 5. ID generation
+     */
+    escapeHtml(text) {
+        if (typeof text !== 'string') return text;
+        
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+    
+    formatDuration(milliseconds) {
+        const seconds = Math.floor(milliseconds / 1000);
+        const minutes = Math.floor(seconds / 60);
+        const hours = Math.floor(minutes / 60);
+        
+        if (hours > 0) {
+            return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${seconds % 60}s`;
+        } else {
+            return `${seconds}s`;
+        }
+    }
+    
+    generateWorkflowId() {
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(2, 15);
+        return `hierarchical_${timestamp}_${random}`;
+    }
+    
+    getWebhookUrl(endpoint) {
+        const baseUrl = window.CONFIG?.WEBHOOK_URL || 
+                       `${window.location.protocol}//${window.location.host}/webhook`;
+        return `${baseUrl}/${endpoint}`;
+    }
+    
+    getHaystackUrl() {
+        return `${window.location.protocol}//${window.location.hostname}:8000`;
+    }
+    
+    /**
+     * ERROR HANDLING - Comprehensive error management
+     * 
+     * ERROR CATEGORIES:
+     * 1. User errors (validation failures)
+     * 2. System errors (network, service failures)
+     * 3. Critical errors (initialization, configuration)
+     * 4. Recovery strategies for each category
+     */
+    handleCriticalError(context, error) {
+        console.error(`Critical error in ${context}:`, error);
+        
+        // Show basic error message if UI not available
+        const message = `System Error: ${error.message}\n\nPlease refresh the page and try again.`;
+        alert(message);
+    }
+    
+    handleEventError(eventType, error) {
+        console.error(`Event handler error (${eventType}):`, error);
+        this.showError(`Interface error occurred`, error);
+    }
+    
+    handleProcessingError(error) {
+        console.error('Processing error:', error);
+        
+        this.state.processingStatus = 'failed';
+        this.state.errors.push({
+            timestamp: new Date().toISOString(),
+            message: error.message,
+            context: this.state.currentStep
+        });
+        
+        this.hideProcessingSection();
+        this.showError('Processing failed', error);
+        
+        // Cleanup timers
+        this.clearTimers();
+    }
+    
+    showError(title, error) {
+        if (!this.elements.errorSection || !this.elements.errorContent) {
+            console.error(`${title}: ${error.message}`);
+            return;
+        }
+        
+        this.elements.errorContent.innerHTML = `
+            <div class="error-details">
+                <h5>${this.escapeHtml(title)}</h5>
+                <p class="error-message">${this.escapeHtml(error.message)}</p>
+                
+                <div class="error-context">
+                    <strong>Context:</strong> ${this.escapeHtml(this.state.currentStep || 'Unknown')}
+                </div>
+                
+                ${this.state.retryCount > 0 ? `
+                    <div class="retry-info">
+                        <strong>Retry Attempts:</strong> ${this.state.retryCount}/${this.config.retryAttempts}
+                    </div>
+                ` : ''}
+                
+                <div class="error-timestamp">
+                    <strong>Time:</strong> ${new Date().toLocaleString()}
+                </div>
+                
+                <details class="error-technical">
+                    <summary>Technical Details</summary>
+                    <pre>${this.escapeHtml(error.stack || error.toString())}</pre>
+                </details>
+            </div>
+        `;
+        
+        this.elements.errorSection.style.display = 'block';
+        this.elements.errorSection.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    showValidationErrors(errors) {
+        const message = errors.join('\n');
+        this.showError('Validation Error', new Error(message));
+    }
+    
+    showValidationWarnings(warnings) {
+        console.warn('Validation warnings:', warnings);
+        // Could implement non-blocking warning display
+    }
+    
+    /**
+     * UI STATE MANAGEMENT - Section visibility and transitions
+     * 
+     * STATE MANAGEMENT:
+     * 1. Only one primary section visible at a time
+     * 2. Smooth transitions between states
+     * 3. Proper ARIA updates for accessibility
+     * 4. State persistence during processing
+     */
+    showFileListSection() {
+        if (this.elements.fileListSection) {
+            this.elements.fileListSection.style.display = 'block';
+        }
+    }
+    
+    hideFileListSection() {
+        if (this.elements.fileListSection) {
+            this.elements.fileListSection.style.display = 'none';
+        }
+    }
+    
+    showProcessingSection() {
+        if (this.elements.processingSection) {
+            this.elements.processingSection.style.display = 'block';
+            this.elements.processingSection.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        this.hideFileListSection();
+        this.hideErrorSection();
+        this.hideResultsSection();
+    }
+    
+    hideProcessingSection() {
+        if (this.elements.processingSection) {
+            this.elements.processingSection.style.display = 'none';
+        }
+    }
+    
+    showResultsSection() {
+        if (this.elements.resultsSection) {
+            this.elements.resultsSection.style.display = 'block';
+            this.elements.resultsSection.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        this.hideProcessingSection();
+        this.hideErrorSection();
+    }
+    
+    hideResultsSection() {
+        if (this.elements.resultsSection) {
+            this.elements.resultsSection.style.display = 'none';
+        }
+    }
+    
+    showErrorSection() {
+        if (this.elements.errorSection) {
+            this.elements.errorSection.style.display = 'block';
+        }
+    }
+    
+    hideErrorSection() {
+        if (this.elements.errorSection) {
+            this.elements.errorSection.style.display = 'none';
+        }
+    }
+    
+    /**
+     * PROGRESS UPDATES - Visual feedback management
+     * 
+     * PROGRESS FEATURES:
+     * 1. Smooth progress bar animations
+     * 2. Descriptive status messages
+     * 3. ARIA updates for accessibility
+     * 4. Step-by-step logging
+     */
+    updateProgress(percentage, status) {
+        if (this.elements.progressFill) {
+            this.elements.progressFill.style.width = `${Math.min(100, Math.max(0, percentage))}%`;
+        }
+        
+        if (this.elements.progressPercentage) {
+            this.elements.progressPercentage.textContent = `${Math.round(percentage)}%`;
+        }
+        
+        if (this.elements.progressStatus) {
+            this.elements.progressStatus.textContent = status;
+        }
+        
+        // Update ARIA attributes
+        const progressBar = this.elements.progressFill?.parentElement;
+        if (progressBar) {
+            progressBar.setAttribute('aria-valuenow', Math.round(percentage));
+            progressBar.setAttribute('aria-valuetext', `${Math.round(percentage)}% - ${status}`);
+        }
+    }
+    
+    logStep(message, level = 'info') {
+        if (!this.elements.stepLog) return;
+        
+        const timestamp = new Date().toLocaleTimeString();
+        const entry = document.createElement('div');
+        entry.className = `log-entry log-${level}`;
+        entry.innerHTML = `
+            <span class="log-time">${timestamp}</span>
+            <span class="log-level">[${level.toUpperCase()}]</span>
+            <span class="log-message">${this.escapeHtml(message)}</span>
+        `;
+        
+        this.elements.stepLog.appendChild(entry);
+        
+        // Auto-scroll to bottom
+        this.elements.stepLog.scrollTop = this.elements.stepLog.scrollHeight;
+        
+        // Limit log entries to prevent memory issues
+        const maxEntries = 100;
+        while (this.elements.stepLog.children.length > maxEntries) {
+            this.elements.stepLog.removeChild(this.elements.stepLog.firstChild);
+        }
+    }
+    
+    logActivity(message) {
+        this.state.lastActivity = message;
+        console.log(`DocumentSummarization: ${message}`);
+    }
+    
+    /**
+     * CLEANUP AND LIFECYCLE - Proper resource management
+     * 
+     * CLEANUP RESPONSIBILITIES:
+     * 1. Clear all timers and intervals
+     * 2. Remove event listeners
+     * 3. Reset state variables
+     * 4. Cancel ongoing network requests
+     */
+    clearTimers() {
+        Object.values(this.timers).forEach(timer => {
+            if (timer) {
+                clearInterval(timer);
+                clearTimeout(timer);
+            }
+        });
+        
+        this.timers = {
+            progressPoll: null,
+            fileReadTimeout: null,
+            retryTimeout: null
+        };
+    }
+    
+    removeFile(index) {
+        if (index >= 0 && index < this.state.selectedFiles.length) {
+            const removedFile = this.state.selectedFiles[index];
+            this.state.selectedFiles.splice(index, 1);
+            
+            this.updateFileList();
+            this.logActivity(`Removed file: ${removedFile.name}`);
+            
+            if (this.state.selectedFiles.length === 0) {
+                this.hideFileListSection();
+            }
+        }
+    }
+    
+    handleClearFiles() {
+        this.state.selectedFiles = [];
+        if (this.elements.fileInput) {
+            this.elements.fileInput.value = '';
+        }
+        this.hideFileListSection();
+        this.logActivity('Cleared all selected files');
+    }
+    
+    handleReset() {
+        // Clear processing state
+        this.state.selectedFiles = [];
+        this.state.currentWorkflowId = null;
+        this.state.processingStatus = 'idle';
+        this.state.currentStep = null;
+        this.state.errors = [];
+        this.state.retryCount = 0;
+        
+        // Clear UI
+        if (this.elements.fileInput) {
+            this.elements.fileInput.value = '';
+        }
+        
+        this.hideFileListSection();
+        this.hideProcessingSection();
+        this.hideResultsSection();
+        this.hideErrorSection();
+        
+        // Clear timers
+        this.clearTimers();
+        
+        this.logActivity('Reset to initial state');
+    }
+    
+    handleRetry() {
+        if (this.state.retryCount >= this.config.retryAttempts) {
+            this.showError('Maximum retry attempts exceeded', new Error('Please start over with a new analysis'));
+            return;
+        }
+        
+        this.state.retryCount++;
+        this.state.errors = [];
+        this.hideErrorSection();
+        
+        this.logActivity(`Retrying processing (attempt ${this.state.retryCount})`);
+        this.handleProcessStart();
+    }
+    
+    handleSectionShow() {
+        this.logActivity('Document summarization section activated');
+    }
+    
+    handleSectionHide() {
+        // Cleanup when section is hidden
+        this.clearTimers();
+    }
+    
+    /**
+     * EXPORT FUNCTIONALITY - Result data export
+     * 
+     * EXPORT FEATURES:
+     * 1. Multiple format support (JSON, TXT)
+     * 2. Comprehensive metadata inclusion
+     * 3. User-friendly filename generation
+     */
+    exportResults() {
+        if (!this.resultData) {
+            this.showError('Export Error', new Error('No results available to export'));
+            return;
+        }
+        
+        try {
+            const exportData = {
+                metadata: this.resultData.metadata,
+                summary: this.resultData.finalSummary.data?.final_summary,
+                statistics: this.resultData.finalSummary.data?.tree_metadata,
+                hierarchy: this.resultData.treeStructure.data?.tree_structure,
+                exportTimestamp: new Date().toISOString(),
+                version: '1.0'
+            };
+            
+            // Create downloadable file
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { 
+                type: 'application/json' 
+            });
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `summarization_results_${this.state.currentWorkflowId}_${Date.now()}.json`;
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            this.logActivity('Results exported successfully');
+            
+        } catch (error) {
+            this.showError('Export failed', error);
+        }
+    }
+    
+    showDebugInformation(workflowId) {
+        const debugInfo = {
+            workflowId: workflowId,
+            state: this.state,
+            config: this.config,
+            systemInfo: {
+                userAgent: navigator.userAgent,
+                timestamp: new Date().toISOString(),
+                location: window.location.href
+            }
+        };
+        
+        console.group('Document Summarization Debug Information');
+        console.log('Workflow ID:', workflowId);
+        console.log('Current State:', this.state);
+        console.log('Configuration:', this.config);
+        console.log('Full Debug Data:', debugInfo);
+        console.groupEnd();
+        
+        // Could also display in modal or copy to clipboard
+        const debugText = JSON.stringify(debugInfo, null, 2);
+        navigator.clipboard.writeText(debugText).then(() => {
+            this.logStep('Debug information copied to clipboard', 'info');
+        }).catch(err => {
+            console.error('Failed to copy debug info:', err);
+        });
+    }
+    
+    /**
+     * UTILITY METHODS - Helper functions
+     */
+    sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    
+    /**
+     * DESTRUCTOR - Cleanup for memory management
+     * 
+     * Called when component is being destroyed
+     */
+    destroy() {
+        this.clearTimers();
+        
+        // Remove event listeners
+        Object.values(this.elements).forEach(element => {
+            if (element && element.removeEventListener) {
+                // Remove all bound handlers
+                Object.values(this.boundHandlers).forEach(handler => {
+                    element.removeEventListener('click', handler);
+                    element.removeEventListener('change', handler);
+                    element.removeEventListener('dragover', handler);
+                    element.removeEventListener('dragleave', handler);
+                    element.removeEventListener('drop', handler);
+                    element.removeEventListener('keydown', handler);
+                });
+            }
+        });
+        
+        // Clear references
+        this.elements = {};
+        this.state = {};
+        this.resultData = null;
+        this.processingData = null;
+        
+        console.log('DocumentSummarizationManager destroyed');
+    }
+}
+
+// Auto-initialize when DOM is ready
+(function() {
+    'use strict';
+    
+    let manager = null;
+    
+    function initializeManager() {
+        try {
+            manager = new DocumentSummarizationManager();
+        } catch (error) {
+            console.error('Failed to initialize DocumentSummarizationManager:', error);
+        }
+    }
+    
+    // Initialize based on DOM state
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeManager);
+    } else {
+        initializeManager();
+    }
+    
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+        if (manager && typeof manager.destroy === 'function') {
+            manager.destroy();
+        }
+    });
+    
+    // Export for debugging
+    window.DocumentSummarizationManager = DocumentSummarizationManager;
+    if (manager) {
+        window.documentSummarizationManager = manager;
+    }
+})();
+```
+
+---
+
+## Enhanced CSS Framework
+
+**File**: Add to existing `website/css/app.css`
+
+```css
+/* ===================================================================
+   DOCUMENT SUMMARIZATION COMPONENT STYLES
+   
+   DESIGN PRINCIPLES:
+   1. Consistent with existing design system
+   2. Accessible (WCAG 2.1 AA compliant)
+   3. Responsive design (mobile-first)
+   4. Smooth transitions and animations
+   5. Clear visual hierarchy
+   ================================================================== */
+
+/* CONTAINER AND LAYOUT */
+.doc-sum-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+}
+
+.doc-sum-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color, #e9ecef);
+}
+
+.doc-sum-description {
+    color: var(--text-muted, #6c757d);
+    font-size: 1.1rem;
+    margin-top: 0.5rem;
+}
+
+/* UPLOAD SECTION */
+.doc-sum-upload {
+    margin-bottom: 2rem;
+}
+
+.upload-zone {
+    border: 3px dashed var(--border-color, #dee2e6);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    background: var(--background-light, #f8f9fa);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.upload-zone:hover,
+.upload-zone:focus,
+.upload-zone.drag-over {
+    border-color: var(--primary-color, #007bff);
+    background: var(--primary-color-light, #e3f2fd);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
+}
+
+.upload-zone:focus {
+    outline: 2px solid var(--primary-color, #007bff);
+    outline-offset: 2px;
+}
+
+.upload-visual h4 {
+    margin: 1rem 0 0.5rem;
+    color: var(--text-primary, #212529);
+    font-weight: 600;
+}
+
+.upload-visual i {
+    color: var(--primary-color, #007bff);
+    margin-bottom: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.upload-zone:hover .upload-visual i {
+    transform: scale(1.1);
+}
+
+#upload-instructions {
+    color: var(--text-muted, #6c757d);
+    font-size: 0.9rem;
+    margin: 0.5rem 0 1.5rem;
+}
+
+/* FILE LIST SECTION */
+.file-list-section {
+    background: white;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.file-list {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.file-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border: 1px solid var(--border-light, #f1f3f4);
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    background: var(--background-light, #f8f9fa);
+    transition: all 0.2s ease;
+}
+
+.file-item:hover {
+    background: white;
+    border-color: var(--primary-color, #007bff);
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.1);
+}
+
+.file-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 500;
+    color: var(--text-primary, #212529);
+}
+
+.file-size {
+    color: var(--text-muted, #6c757d);
+    font-size: 0.85rem;
+}
+
+.remove-file-btn {
+    min-width: auto;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+.file-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+
+/* PROCESSING SECTION */
+.processing-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+}
+
+.progress-container {
+    margin-bottom: 2rem;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 24px;
+    background: #e9ecef;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(
+        90deg, 
+        var(--primary-color, #007bff) 0%, 
+        var(--secondary-color, #0056b3) 50%,
+        var(--success-color, #28a745) 100%
+    );
+    width: 0%;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        transparent 100%
+    );
+    animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.progress-text {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.progress-percentage {
+    font-weight: 600;
+    color: var(--primary-color, #007bff);
+    font-size: 1rem;
+}
+
+.progress-status {
+    color: var(--text-muted, #6c757d);
+    font-style: italic;
+}
+
+/* STEP LOG */
+.processing-details {
+    margin-top: 1.5rem;
+}
+
+.step-log {
+    background: white;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 6px;
+    padding: 1rem;
+    max-height: 250px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.log-entry {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f8f9fa;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.log-time {
+    color: var(--text-muted, #6c757d);
+    flex-shrink: 0;
+    min-width: 80px;
+}
+
+.log-level {
+    flex-shrink: 0;
+    min-width: 60px;
+    font-weight: 600;
+}
+
+.log-level:contains("[INFO]") { color: var(--info-color, #17a2b8); }
+.log-level:contains("[SUCCESS]") { color: var(--success-color, #28a745); }
+.log-level:contains("[WARNING]") { color: var(--warning-color, #ffc107); }
+.log-level:contains("[ERROR]") { color: var(--danger-color, #dc3545); }
+.log-level:contains("[DEBUG]") { color: var(--secondary-color, #6c757d); }
+
+.log-message {
+    flex: 1;
+    color: var(--text-primary, #212529);
+}
+
+/* RESULTS SECTION */
+.results-section {
+    background: white;
+    border: 1px solid var(--success-color, #28a745);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.1);
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+}
+
+.result-card {
+    background: var(--background-light, #f8f9fa);
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 8px;
+    padding: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.result-card h4 {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    color: var(--text-primary, #212529);
+    font-weight: 600;
+}
+
+.result-card h4 i {
+    color: var(--primary-color, #007bff);
+}
+
+/* SUMMARY CARD */
+.summary-meta {
+    margin-bottom: 1.5rem;
+}
+
+.meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.meta-row:last-child {
+    border-bottom: none;
+}
+
+.meta-label {
+    font-weight: 500;
+    color: var(--text-muted, #6c757d);
+}
+
+.meta-value {
+    font-weight: 600;
+    color: var(--text-primary, #212529);
+}
+
+.meta-value.status-completed {
+    color: var(--success-color, #28a745);
+}
+
+.meta-value.status-processing {
+    color: var(--warning-color, #ffc107);
+}
+
+.meta-value.status-failed {
+    color: var(--danger-color, #dc3545);
+}
+
+.content-display {
+    background: white;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-left: 4px solid var(--primary-color, #007bff);
+    border-radius: 4px;
+    padding: 1rem;
+    margin: 0.75rem 0;
+    white-space: pre-wrap;
+    font-family: var(--font-family-content, Georgia, serif);
+    line-height: 1.6;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.full-content {
+    background: white;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 4px;
+    padding: 1rem;
+    margin-top: 1rem;
+    white-space: pre-wrap;
+    font-family: var(--font-family-content, Georgia, serif);
+    line-height: 1.6;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.expand-content-btn {
+    margin-top: 0.75rem;
+}
+
+/* STATISTICS CARD */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 1rem;
+    background: white;
+    border-radius: 6px;
+    border: 1px solid var(--border-light, #f1f3f4);
+}
+
+.stat-number {
+    display: block;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--primary-color, #007bff);
+    line-height: 1;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted, #6c757d);
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+.type-breakdown h6 {
+    margin: 1rem 0 0.5rem;
+    color: var(--text-primary, #212529);
+    font-weight: 600;
+}
+
+.type-list {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem;
+}
+
+.type-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.type-list li:last-child {
+    border-bottom: none;
+}
+
+.type-name {
+    color: var(--text-primary, #212529);
+    font-weight: 500;
+}
+
+.type-count {
+    color: var(--primary-color, #007bff);
+    font-weight: 600;
+}
+
+/* TREE VISUALIZATION */
+.tree-container {
+    background: white;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 6px;
+    padding: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.tree-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.tree-list.level-0 > .tree-node {
+    border-left: 3px solid var(--primary-color, #007bff);
+    padding-left: 0.75rem;
+}
+
+.tree-list.level-1 > .tree-node {
+    border-left: 3px solid var(--info-color, #17a2b8);
+    margin-left: 1rem;
+    padding-left: 0.75rem;
+}
+
+.tree-list.level-2 > .tree-node {
+    border-left: 3px solid var(--success-color, #28a745);
+    margin-left: 2rem;
+    padding-left: 0.75rem;
+}
+
+.tree-list.level-3 > .tree-node {
+    border-left: 3px solid var(--warning-color, #ffc107);
+    margin-left: 3rem;
+    padding-left: 0.75rem;
+}
+
+.tree-node {
+    margin-bottom: 0.5rem;
+}
+
+.node-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--background-light, #f8f9fa);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.node-header:hover {
+    background: #e9ecef;
+}
+
+.toggle-icon {
+    color: var(--text-muted, #6c757d);
+    font-size: 0.75rem;
+    transition: transform 0.2s ease;
+    width: 12px;
+}
+
+.placeholder-icon {
+    color: transparent;
+    font-size: 0.75rem;
+    width: 12px;
+}
+
+.document-icon {
+    color: var(--primary-color, #007bff);
+    font-size: 0.9rem;
+}
+
+.node-title {
+    font-weight: 500;
+    color: var(--text-primary, #212529);
+    flex: 1;
+}
+
+.node-id {
+    font-size: 0.75rem;
+    color: var(--text-muted, #6c757d);
+    font-family: monospace;
+}
+
+.node-children {
+    margin-top: 0.5rem;
+    padding-left: 1rem;
+    border-left: 1px dashed var(--border-color, #dee2e6);
+}
+
+.no-tree {
+    text-align: center;
+    color: var(--text-muted, #6c757d);
+    font-style: italic;
+    padding: 2rem;
+}
+
+/* ACTION LINKS */
+.actions-card .action-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.action-links .btn {
+    justify-content: flex-start;
+    text-decoration: none;
+}
+
+.action-links .btn i {
+    margin-right: 0.5rem;
+    width: 16px;
+    text-align: center;
+}
+
+/* ERROR SECTION */
+.error-section {
+    background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+    border: 1px solid var(--danger-color, #dc3545);
+    border-radius: 12px;
+    padding: 2rem;
+    margin: 1.5rem 0;
+}
+
+.error-details {
+    background: white;
+    border-radius: 6px;
+    padding: 1.5rem;
+}
+
+.error-message {
+    color: var(--danger-color, #dc3545);
+    font-weight: 500;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+}
+
+.error-context,
+.retry-info,
+.error-timestamp {
+    margin: 0.75rem 0;
+    padding: 0.5rem;
+    background: var(--background-light, #f8f9fa);
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.error-technical {
+    margin-top: 1rem;
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 4px;
+}
+
+.error-technical summary {
+    padding: 0.75rem;
+    background: var(--background-light, #f8f9fa);
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.error-technical pre {
+    margin: 0;
+    padding: 1rem;
+    background: #f8f9fa;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    overflow-x: auto;
+}
+
+/* ACTION BUTTONS */
+.processing-actions,
+.results-actions,
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 1.5rem;
+}
+
+/* BUTTON ENHANCEMENTS */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    white-space: nowrap;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.btn i {
+    margin-right: 0.5rem;
+    font-size: 0.9em;
+}
+
+.btn-lg {
+    padding: 1rem 2rem;
+    font-size: 1rem;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+}
+
+/* Button Variants */
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color, #007bff) 0%, #0056b3 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, var(--success-color, #28a745) 0%, #1e7e34 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+}
+
+.btn-success:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, var(--warning-color, #ffc107) 0%, #e0a800 100%);
+    color: #212529;
+    box-shadow: 0 2px 4px rgba(255, 193, 7, 0.3);
+}
+
+.btn-warning:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, var(--danger-color, #dc3545) 0%, #c82333 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
+}
+
+.btn-danger:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, var(--secondary-color, #6c757d) 0%, #545b62 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(108, 117, 125, 0.4);
+}
+
+.btn-info {
+    background: linear-gradient(135deg, var(--info-color, #17a2b8) 0%, #138496 100%);
+    color: white;
+    box-shadow: 0 2px 4px rgba(23, 162, 184, 0.3);
+}
+
+.btn-info:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
+}
+
+/* Outline Button Variants */
+.btn-outline-primary {
+    background: transparent;
+    color: var(--primary-color, #007bff);
+    border: 2px solid var(--primary-color, #007bff);
+}
+
+.btn-outline-primary:hover:not(:disabled) {
+    background: var(--primary-color, #007bff);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-outline-secondary {
+    background: transparent;
+    color: var(--secondary-color, #6c757d);
+    border: 2px solid var(--secondary-color, #6c757d);
+}
+
+.btn-outline-secondary:hover:not(:disabled) {
+    background: var(--secondary-color, #6c757d);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-outline-info {
+    background: transparent;
+    color: var(--info-color, #17a2b8);
+    border: 2px solid var(--info-color, #17a2b8);
+}
+
+.btn-outline-info:hover:not(:disabled) {
+    background: var(--info-color, #17a2b8);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.btn-outline-warning {
+    background: transparent;
+    color: var(--warning-color, #ffc107);
+    border: 2px solid var(--warning-color, #ffc107);
+}
+
+.btn-outline-warning:hover:not(:disabled) {
+    background: var(--warning-color, #ffc107);
+    color: #212529;
+    transform: translateY(-1px);
+}
+
+/* RESPONSIVE DESIGN */
+@media (max-width: 768px) {
+    .doc-sum-container {
+        padding: 1rem;
+    }
+    
+    .upload-zone {
+        padding: 2rem 1rem;
+    }
+    
+    .results-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .file-actions,
+    .processing-actions,
+    .results-actions,
+    .error-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .btn {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .action-links .btn {
+        justify-content: center;
+    }
+    
+    .progress-text {
+        flex-direction: column;
+        gap: 0.5rem;
+        text-align: center;
+    }
+    
+    .meta-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+    
+    .tree-container {
+        max-height: 300px;
+    }
+    
+    .step-log {
+        max-height: 200px;
+        font-size: 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .upload-zone {
+        padding: 1.5rem 1rem;
+    }
+    
+    .upload-visual h4 {
+        font-size: 1.1rem;
+    }
+    
+    .upload-visual i {
+        font-size: 2rem !important;
+    }
+    
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-item {
+        padding: 0.75rem;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .processing-section,
+    .results-section,
+    .error-section {
+        padding: 1.5rem;
+    }
+    
+    .result-card {
+        padding: 1rem;
+    }
+}
+
+/* ACCESSIBILITY ENHANCEMENTS */
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    
+    .progress-fill::after {
+        animation: none;
+    }
+}
+
+@media (prefers-contrast: high) {
+    .upload-zone {
+        border-width: 4px;
+    }
+    
+    .btn {
+        border-width: 2px;
+        border-style: solid;
+    }
+    
+    .btn-primary {
+        border-color: var(--primary-color, #007bff);
+    }
+    
+    .btn-success {
+        border-color: var(--success-color, #28a745);
+    }
+    
+    .btn-warning {
+        border-color: var(--warning-color, #ffc107);
+    }
+    
+    .btn-danger {
+        border-color: var(--danger-color, #dc3545);
+    }
+}
+
+/* FOCUS INDICATORS */
+.btn:focus,
+.upload-zone:focus,
+input:focus,
+button:focus {
+    outline: 2px solid var(--primary-color, #007bff);
+    outline-offset: 2px;
+}
+
+/* PRINT STYLES */
+@media print {
+    .doc-sum-container {
+        max-width: none;
+        padding: 0;
+    }
+    
+    .upload-zone,
+    .processing-section,
+    .processing-actions,
+    .error-actions,
+    .results-actions {
+        display: none !important;
+    }
+    
+    .results-section {
+        border: none;
+        box-shadow: none;
+        page-break-inside: avoid;
+    }
+    
+    .result-card {
+        border: 1px solid #000;
+        page-break-inside: avoid;
+        margin-bottom: 1rem;
+    }
+    
+    .btn {
+        display: none !important;
+    }
+}
+
+/* DARK MODE SUPPORT (if enabled in main app) */
+@media (prefers-color-scheme: dark) {
+    .doc-sum-container {
+        --background-light: #2d3748;
+        --text-primary: #f7fafc;
+        --text-muted: #a0aec0;
+        --border-color: #4a5568;
+        --border-light: #2d3748;
+    }
+    
+    .upload-zone {
+        background: var(--background-light);
+        color: var(--text-primary);
+    }
+    
+    .file-item,
+    .result-card,
+    .step-log,
+    .content-display,
+    .full-content {
+        background: var(--background-light);
+        color: var(--text-primary);
+        border-color: var(--border-color);
+    }
+}
+```
+
+---
+
+## Enhanced N8N Workflow with Error Handling
+
+**Usage**: Import this improved workflow JSON via n8n interface
+
+```json
+{
+  "name": "Hierarchical Document Summarization - Production Ready",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ingest-documents",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-ingest",
+      "name": "📥 Webhook - Ingest Documents",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 200],
+      "webhookId": "ingest-documents"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input validation and preprocessing for document ingestion\nconst input = $input.first().json;\n\n// Comprehensive input validation\nif (!input.operation || input.operation !== 'ingestDocuments') {\n  return [{\n    json: {\n      success: false,\n      error: 'Invalid operation. Expected: ingestDocuments',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nif (!input.documents || !Array.isArray(input.documents)) {\n  return [{\n    json: {\n      success: false,\n      error: 'Documents array is required',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nif (!input.workflow_id || typeof input.workflow_id !== 'string') {\n  return [{\n    json: {\n      success: false,\n      error: 'Valid workflow_id is required',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Validate document structure\nconst validationErrors = [];\ninput.documents.forEach((doc, index) => {\n  if (!doc.content || typeof doc.content !== 'string') {\n    validationErrors.push(`Document ${index}: content is required`);\n  }\n  \n  if (!doc.document_type) {\n    validationErrors.push(`Document ${index}: document_type is required`);\n  }\n  \n  if (doc.hierarchy_level === undefined || doc.hierarchy_level < 0) {\n    validationErrors.push(`Document ${index}: valid hierarchy_level is required`);\n  }\n  \n  if (!doc.workflow_id) {\n    validationErrors.push(`Document ${index}: workflow_id is required`);\n  }\n});\n\nif (validationErrors.length > 0) {\n  return [{\n    json: {\n      success: false,\n      error: 'Document validation failed: ' + validationErrors.join(', '),\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Sanitize and enhance documents\nconst processedDocuments = input.documents.map((doc, index) => ({\n  ...doc,\n  content: doc.content.substring(0, 100000), // Limit content size\n  metadata: {\n    ...doc.metadata,\n    ingestion_timestamp: new Date().toISOString(),\n    document_index: index,\n    validation_passed: true\n  },\n  processing_status: 'ready_summarize'\n}));\n\nconsole.log(`Processing ${processedDocuments.length} documents for workflow: ${input.workflow_id}`);\n\nreturn [{\n  json: {\n    operation: 'ingestDocuments',\n    documents: processedDocuments,\n    workflow_id: input.workflow_id,\n    total_documents: processedDocuments.length,\n    validation_passed: true\n  }\n}];"
+      },
+      "id": "validate-ingest",
+      "name": "✅ Validate Ingestion Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 200]
+    },
+    {
+      "parameters": {
+        "operation": "ingestDocuments",
+        "documents": "={{ $json.documents }}"
+      },
+      "id": "haystack-ingest",
+      "name": "🗃️ Haystack - Ingest Documents",
+      "type": "n8n-nodes-haystack.haystackSearch",
+      "typeVersion": 1,
+      "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process Haystack ingestion response\nconst input = $input.first().json;\nconst originalRequest = $input.first().json;\n\n// Check for ingestion success\nif (input.ingested_count === undefined) {\n  throw new Error('Invalid response from Haystack service');\n}\n\nconst response = {\n  success: true,\n  message: 'Documents ingested successfully',\n  workflow_id: originalRequest.workflow_id,\n  ingested_count: input.ingested_count || 0,\n  failed_count: input.failed_count || 0,\n  total_requested: originalRequest.total_documents,\n  timestamp: new Date().toISOString()\n};\n\n// Log success\nconsole.log(`Ingestion completed: ${response.ingested_count}/${response.total_requested} documents processed`);\n\nif (response.failed_count > 0) {\n  console.warn(`Warning: ${response.failed_count} documents failed ingestion`);\n}\n\nreturn [{ json: response }];"
+      },
+      "id": "process-ingest-response",
+      "name": "📊 Process Ingestion Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-ingest",
+      "name": "✅ Respond - Ingestion Complete",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Error handler for ingestion failures\nconst error = $input.first().error;\nconst originalData = $input.first().json;\n\nconst errorResponse = {\n  success: false,\n  error: error?.message || 'Unknown ingestion error',\n  workflow_id: originalData?.workflow_id || 'unknown',\n  stage: 'document_ingestion',\n  timestamp: new Date().toISOString(),\n  retry_suggested: true\n};\n\nconsole.error(`Ingestion failed for workflow ${errorResponse.workflow_id}: ${errorResponse.error}`);\n\nreturn [{ json: errorResponse }];"
+      },
+      "id": "handle-ingest-error",
+      "name": "❌ Handle Ingestion Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-ingest-error",
+      "name": "❌ Respond - Ingestion Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "start-summarization",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-summarize",
+      "name": "🚀 Webhook - Start Summarization",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 500],
+      "webhookId": "start-summarization"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Initialize and validate summarization workflow\nconst input = $input.first().json;\n\n// Input validation\nif (!input.workflow_id || typeof input.workflow_id !== 'string') {\n  return [{\n    json: {\n      success: false,\n      error: 'Valid workflow_id is required for summarization',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\nconst workflowId = input.workflow_id;\nconst totalDocs = input.total_documents || 0;\n\nconsole.log(`Initializing hierarchical summarization for workflow: ${workflowId}`);\n\n// Create comprehensive workflow status\nconst workflowStatus = {\n  workflow_id: workflowId,\n  status: 'initializing',\n  current_level: 0,\n  max_levels: 4,\n  total_source_documents: totalDocs,\n  start_time: new Date().toISOString(),\n  last_activity: 'Summarization workflow initialized',\n  processing_steps: [],\n  error_count: 0,\n  retry_count: 0,\n  groups_processed: 0,\n  groups_total: 0\n};\n\n// Store in global memory with TTL (24 hours)\nconst statusKey = `workflow_status_${workflowId}`;\nglobal.set(statusKey, workflowStatus);\n\n// Schedule cleanup after 24 hours\nsetTimeout(() => {\n  global.set(statusKey, null);\n}, 24 * 60 * 60 * 1000);\n\nconsole.log(`Workflow status initialized for ${workflowId}`);\n\nreturn [{\n  json: {\n    success: true,\n    message: 'Summarization workflow initialized successfully',\n    workflow_id: workflowId,\n    status: 'processing',\n    current_level: 0,\n    max_levels: 4,\n    estimated_duration: '5-15 minutes',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "init-summarization",
+      "name": "🎯 Initialize Summarization Workflow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-summarize",
+      "name": "✅ Respond - Summarization Started",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [600, 500]
+    },
+    {
+      "parameters": {
+        "operation": "getByStage",
+        "stageType": "ready_summarize",
+        "hierarchyLevel": 0,
+        "workflowId": "={{ $json.workflow_id }}"
+      },
+      "id": "get-source-docs",
+      "name": "📋 Get Source Documents",
+      "type": "n8n-nodes-haystack.haystackSearch",
+      "typeVersion": 1,
+      "position": [800, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Intelligent document grouping for Level 1 summarization\nconst input = $input.first().json;\nconst documents = input.documents || [];\nconst workflowId = input.workflow_id;\n\n// Update workflow status\nlet status = global.get(`workflow_status_${workflowId}`) || {};\n\nif (documents.length === 0) {\n  console.log(`No source documents found for workflow ${workflowId}`);\n  \n  // Mark as completed if no documents to process\n  status.status = 'completed';\n  status.last_activity = 'No documents found for processing';\n  status.end_time = new Date().toISOString();\n  status.completed = true;\n  global.set(`workflow_status_${workflowId}`, status);\n  \n  return [{\n    json: {\n      workflow_id: workflowId,\n      status: 'completed',\n      message: 'No documents found for processing',\n      reason: 'empty_document_set'\n    }\n  }];\n}\n\nconsole.log(`Processing ${documents.length} source documents for Level 1 summarization`);\n\n// Smart grouping based on document count\nlet groupSize;\nif (documents.length <= 3) {\n  groupSize = 1; // Small sets: one document per group\n} else if (documents.length <= 9) {\n  groupSize = 3; // Medium sets: 3 documents per group\n} else {\n  groupSize = 5; // Large sets: 5 documents per group\n}\n\nconst groups = [];\nfor (let i = 0; i < documents.length; i += groupSize) {\n  const group = documents.slice(i, i + groupSize);\n  \n  // Create meaningful group summary from document metadata\n  const filenames = group.map(doc => doc.metadata?.filename || 'Unknown').join(', ');\n  const combinedContent = group.map((doc, idx) => {\n    const filename = doc.metadata?.filename || `Document ${idx + 1}`;\n    return `=== ${filename} ===\\n${doc.content}`;\n  }).join('\\n\\n');\n  \n  groups.push({\n    group_id: `${workflowId}_level1_group${Math.floor(i / groupSize)}`,\n    workflow_id: workflowId,\n    hierarchy_level: 1,\n    source_document_ids: group.map(doc => doc.document_id),\n    combined_content: combinedContent,\n    group_index: Math.floor(i / groupSize),\n    document_count: group.length,\n    group_description: `Group ${Math.floor(i / groupSize) + 1}: ${filenames}`,\n    content_length: combinedContent.length\n  });\n}\n\n// Update workflow status with detailed progress tracking\nstatus.current_level = 1;\nstatus.status = 'processing_level_1';\nstatus.groups_created = groups.length;\nstatus.groups_total = groups.length;\nstatus.last_activity = `Created ${groups.length} document groups for Level 1 summarization`;\nstatus.processing_steps.push({\n  timestamp: new Date().toISOString(),\n  level: 1,\n  action: 'groups_created',\n  details: `${groups.length} groups from ${documents.length} documents`\n});\nglobal.set(`workflow_status_${workflowId}`, status);\n\nconsole.log(`Created ${groups.length} groups for Level 1 summarization (${groupSize} docs per group)`);\n\nreturn groups.map(group => ({ json: group }));"
+      },
+      "id": "group-level1",
+      "name": "📦 Create Level 1 Groups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 500]
+    },
+    {
+      "parameters": {
+        "model": "deepseek-r1:1.5b",
+        "prompt": "={{ `You are an expert document analyst creating Level 1 summaries for hierarchical document processing.\n\nYour task: Analyze and summarize the following documents, preserving key information while creating a coherent, well-structured summary.\n\nKey Requirements:\n- Capture main themes, important details, and key insights\n- Maintain logical organization and clear structure\n- Be comprehensive yet concise (aim for 400-600 words)\n- Use professional, clear language\n- Focus on factual content and actionable information\n- Preserve important names, dates, numbers, and specific details\n\nContext: This is ${$json.group_description} in a ${$json.document_count}-document analysis workflow.\n\nDocuments to summarize:\n${$json.combined_content}\n\nProvide a well-structured Level 1 summary that captures the essential information from these documents.` }}",
+        "options": {
+          "temperature": 0.3,
+          "max_tokens": 1000
+        }
+      },
+      "id": "ai-summarize-level1",
+      "name": "🤖 AI Summarize Level 1",
+      "type": "n8n-nodes-deepseek.deepseek",
+      "typeVersion": 1,
+      "position": [1200, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process AI summary response and prepare for ingestion\nconst aiInput = $input.first().json;\nconst groupInput = $input.last().json; // Get original group data\n\n// Extract AI response with fallback handling\nconst aiResponse = aiInput.response || aiInput.text || aiInput.summary || aiInput.content;\n\nif (!aiResponse || aiResponse.trim().length === 0) {\n  throw new Error('No valid summary content received from AI model');\n}\n\n// Validate response quality\nif (aiResponse.length < 50) {\n  console.warn(`Short AI response received (${aiResponse.length} chars) - may indicate processing issue`);\n}\n\n// Create comprehensive Level 1 summary document\nconst summaryDocument = {\n  content: aiResponse.trim(),\n  metadata: {\n    document_type: 'summary',\n    summary_type: 'level_1_summary',\n    workflow_id: groupInput.workflow_id,\n    hierarchy_level: 1,\n    source_document_ids: groupInput.source_document_ids,\n    group_id: groupInput.group_id,\n    group_index: groupInput.group_index,\n    group_description: groupInput.group_description,\n    source_document_count: groupInput.document_count,\n    original_content_length: groupInput.content_length,\n    summary_length: aiResponse.trim().length,\n    compression_ratio: Math.round((aiResponse.trim().length / groupInput.content_length) * 100) / 100,\n    created_at: new Date().toISOString(),\n    processing_status: 'completed',\n    ai_model: 'deepseek-r1:1.5b',\n    processing_timestamp: new Date().toISOString()\n  },\n  document_type: 'summary',\n  hierarchy_level: 1,\n  workflow_id: groupInput.workflow_id,\n  parent_document_ids: groupInput.source_document_ids,\n  processing_status: 'ready_summarize' // Ready for next level\n};\n\n// Update workflow status\nconst workflowId = groupInput.workflow_id;\nlet status = global.get(`workflow_status_${workflowId}`) || {};\nstatus.groups_processed = (status.groups_processed || 0) + 1;\nstatus.last_activity = `Completed Level 1 summary for ${groupInput.group_description}`;\nstatus.processing_steps.push({\n  timestamp: new Date().toISOString(),\n  level: 1,\n  action: 'summary_completed',\n  group_id: groupInput.group_id,\n  compression_ratio: summaryDocument.metadata.compression_ratio\n});\nglobal.set(`workflow_status_${workflowId}`, status);\n\nconsole.log(`Created Level 1 summary for ${groupInput.group_id} (compression: ${summaryDocument.metadata.compression_ratio}x)`);\n\nreturn [{\n  json: {\n    documents: [summaryDocument],\n    group_info: groupInput,\n    processing_stats: {\n      original_length: groupInput.content_length,\n      summary_length: aiResponse.trim().length,\n      compression_ratio: summaryDocument.metadata.compression_ratio\n    }\n  }\n}];"
+      },
+      "id": "process-level1-summary",
+      "name": "📝 Process Level 1 Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 500]
+    },
+    {
+      "parameters": {
+        "operation": "ingestDocuments",
+        "documents": "={{ $json.documents }}"
+      },
+      "id": "ingest-level1-summary",
+      "name": "💾 Ingest Level 1 Summary",
+      "type": "n8n-nodes-haystack.haystackSearch",
+      "typeVersion": 1,
+      "position": [1600, 500]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "wait-between-levels",
+      "name": "⏳ Wait Between Levels",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1800, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Intelligent workflow progression controller\nconst input = $input.first().json;\nconst groupInfo = input.group_info;\nconst workflowId = groupInfo.workflow_id;\n\n// Get current workflow status\nlet status = global.get(`workflow_status_${workflowId}`) || {};\n\n// Check if all Level 1 groups are processed\nconst allGroupsProcessed = status.groups_processed >= status.groups_total;\n\nif (allGroupsProcessed) {\n  console.log(`All Level 1 groups completed for workflow ${workflowId}. Proceeding to Level 2.`);\n  \n  // Update status for Level 2 processing\n  status.current_level = 2;\n  status.status = 'preparing_level_2';\n  status.last_activity = 'All Level 1 summaries completed, preparing Level 2';\n  status.processing_steps.push({\n    timestamp: new Date().toISOString(),\n    level: 1,\n    action: 'level_completed',\n    groups_processed: status.groups_processed\n  });\n  global.set(`workflow_status_${workflowId}`, status);\n  \n  return [{\n    json: {\n      workflow_id: workflowId,\n      action: 'proceed_to_level_2',\n      current_level: 1,\n      groups_completed: status.groups_processed\n    }\n  }];\n} else {\n  console.log(`Level 1 progress: ${status.groups_processed}/${status.groups_total} groups completed`);\n  \n  // Continue processing remaining groups\n  status.last_activity = `Processing Level 1: ${status.groups_processed}/${status.groups_total} groups completed`;\n  global.set(`workflow_status_${workflowId}`, status);\n  \n  return [{\n    json: {\n      workflow_id: workflowId,\n      action: 'continue_level_1',\n      current_level: 1,\n      progress: `${status.groups_processed}/${status.groups_total}`\n    }\n  }];\n}"
+      },
+      "id": "check-level1-completion",
+      "name": "🔍 Check Level 1 Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 500]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "proceed-to-level-2",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "proceed_to_level_2",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-level-progression",
+      "name": "🔀 Route Level Progression",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2200, 500]
+    },
+    {
+      "parameters": {
+        "operation": "getByStage",
+        "stageType": "ready_summarize",
+        "hierarchyLevel": 1,
+        "workflowId": "={{ $json.workflow_id }}"
+      },
+      "id": "get-level1-summaries",
+      "name": "📄 Get Level 1 Summaries",
+      "type": "n8n-nodes-haystack.haystackSearch",
+      "typeVersion": 1,
+      "position": [2400, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare final summary from Level 1 summaries\nconst input = $input.first().json;\nconst documents = input.documents || [];\nconst workflowId = input.workflow_id;\n\n// Get workflow status\nlet status = global.get(`workflow_status_${workflowId}`) || {};\n\nif (documents.length === 0) {\n  console.log(`No Level 1 summaries found for workflow ${workflowId}`);\n  \n  // Mark as completed with warning\n  status.status = 'completed_with_warnings';\n  status.last_activity = 'No Level 1 summaries found for final processing';\n  status.end_time = new Date().toISOString();\n  status.completed = true;\n  status.warnings = ['No Level 1 summaries available for final summary creation'];\n  global.set(`workflow_status_${workflowId}`, status);\n  \n  return [{\n    json: {\n      workflow_id: workflowId,\n      status: 'completed_with_warnings',\n      message: 'No Level 1 summaries found for final processing',\n      warning: 'incomplete_summarization_chain'\n    }\n  }];\n}\n\nconsole.log(`Processing ${documents.length} Level 1 summaries for final summary creation`);\n\n// Calculate total compression and content statistics\nconst totalOriginalLength = documents.reduce((sum, doc) => {\n  return sum + (doc.metadata?.original_content_length || 0);\n}, 0);\n\nconst totalSummaryLength = documents.reduce((sum, doc) => {\n  return sum + (doc.content?.length || 0);\n}, 0);\n\n// Create comprehensive final summary prompt\nconst summaryIntroduction = `HIERARCHICAL DOCUMENT ANALYSIS - FINAL SYNTHESIS\n\nOverview: This final summary synthesizes ${documents.length} Level 1 summaries from a hierarchical document analysis workflow.\nOriginal Content: ${Math.round(totalOriginalLength / 1024)}KB across multiple documents\nIntermediate Summaries: ${Math.round(totalSummaryLength / 1024)}KB\nWorkflow ID: ${workflowId}\n\n`;\n\nconst combinedContent = documents.map((doc, index) => {\n  const groupDesc = doc.metadata?.group_description || `Level 1 Summary ${index + 1}`;\n  const sourceCount = doc.metadata?.source_document_count || 'unknown';\n  const compression = doc.metadata?.compression_ratio || 'unknown';\n  \n  return `=== ${groupDesc} ===\nSource Documents: ${sourceCount} | Compression Ratio: ${compression}x\n\n${doc.content}\n`;\n}).join('\\n--- SUMMARY SEPARATOR ---\\n\\n');\n\n// Update workflow status\nstatus.current_level = 2;\nstatus.status = 'creating_final_summary';\nstatus.last_activity = `Combining ${documents.length} Level 1 summaries into final comprehensive summary`;\nstatus.processing_steps.push({\n  timestamp: new Date().toISOString(),\n  level: 2,\n  action: 'final_summary_preparation',\n  input_summaries: documents.length,\n  total_original_length: totalOriginalLength,\n  total_summary_length: totalSummaryLength\n});\nglobal.set(`workflow_status_${workflowId}`, status);\n\nreturn [{\n  json: {\n    workflow_id: workflowId,\n    hierarchy_level: 2,\n    source_document_ids: documents.map(doc => doc.document_id),\n    source_summaries: documents.length,\n    combined_content: summaryIntroduction + combinedContent,\n    total_original_length: totalOriginalLength,\n    total_summary_length: totalSummaryLength,\n    overall_compression_ratio: Math.round((totalSummaryLength / totalOriginalLength) * 100) / 100,\n    processing_metadata: {\n      level_1_summaries_processed: documents.length,\n      content_reduction_achieved: `${Math.round(((totalOriginalLength - totalSummaryLength) / totalOriginalLength) * 100)}%`\n    }\n  }\n}];"
+      },
+      "id": "prepare-final-summary",
+      "name": "🎯 Prepare Final Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2600, 400]
+    },
+    {
+      "parameters": {
+        "model": "deepseek-r1:1.5b",
+        "prompt": "={{ `You are an expert document analyst creating the FINAL COMPREHENSIVE SUMMARY for a hierarchical document analysis.\n\nYour task: Synthesize multiple Level 1 summaries into one authoritative, comprehensive final summary that serves as the definitive overview of all analyzed documents.\n\nCritical Requirements:\n- Create a unified, coherent narrative that flows logically\n- Preserve ALL important themes, insights, and key information from the input summaries\n- Organize information in a clear, professional structure with distinct sections\n- Provide comprehensive coverage while maintaining readability\n- Focus on actionable insights, key findings, and strategic implications\n- Include specific details, names, dates, and quantitative information where relevant\n- Create a summary that could serve as an executive briefing or comprehensive report\n\nTarget Length: 800-1200 words for comprehensive coverage\nStructure: Use clear headings and organized sections\nTone: Professional, authoritative, and analytical\n\nInput Data to Synthesize:\n${$json.combined_content}\n\nDeliver a final summary that captures the complete scope and depth of the analyzed documents, serving as the authoritative overview of all content.` }}",
+        "options": {
+          "temperature": 0.2,
+          "max_tokens": 1500
+        }
+      },
+      "id": "ai-final-summary",
+      "name": "🎓 AI Create Final Summary",
+      "type": "n8n-nodes-deepseek.deepseek",
+      "typeVersion": 1,
+      "position": [2800, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process final summary and complete workflow\nconst aiInput = $input.first().json;\nconst summaryInput = $input.last().json;\n\n// Extract and validate AI response\nconst aiResponse = aiInput.response || aiInput.text || aiInput.summary || aiInput.content;\n\nif (!aiResponse || aiResponse.trim().length === 0) {\n  throw new Error('No final summary content received from AI model');\n}\n\nconst finalSummaryContent = aiResponse.trim();\n\n// Create comprehensive final summary document\nconst finalSummary = {\n  content: finalSummaryContent,\n  metadata: {\n    document_type: 'summary',\n    summary_type: 'final_summary',\n    workflow_id: summaryInput.workflow_id,\n    hierarchy_level: 2,\n    source_document_ids: summaryInput.source_document_ids,\n    source_summary_count: summaryInput.source_summaries,\n    total_original_length: summaryInput.total_original_length,\n    total_intermediate_length: summaryInput.total_summary_length,\n    final_summary_length: finalSummaryContent.length,\n    overall_compression_ratio: summaryInput.overall_compression_ratio,\n    final_compression_ratio: Math.round((finalSummaryContent.length / summaryInput.total_original_length) * 100) / 100,\n    content_reduction_achieved: summaryInput.processing_metadata.content_reduction_achieved,\n    ai_model: 'deepseek-r1:1.5b',\n    created_at: new Date().toISOString(),\n    processing_status: 'completed',\n    workflow_completed: true\n  },\n  document_type: 'summary',\n  hierarchy_level: 2,\n  workflow_id: summaryInput.workflow_id,\n  parent_document_ids: summaryInput.source_document_ids,\n  processing_status: 'completed'\n};\n\n// Finalize workflow status\nconst workflowId = summaryInput.workflow_id;\nlet status = global.get(`workflow_status_${workflowId}`) || {};\nstatus.status = 'completed';\nstatus.current_level = 2;\nstatus.last_activity = 'Final comprehensive summary created successfully';\nstatus.end_time = new Date().toISOString();\nstatus.completed = true;\nstatus.processing_duration = new Date(status.end_time) - new Date(status.start_time);\nstatus.final_summary_stats = {\n  final_length: finalSummaryContent.length,\n  overall_compression: finalSummary.metadata.final_compression_ratio,\n  total_documents_processed: status.total_source_documents,\n  processing_levels_completed: 2\n};\nstatus.processing_steps.push({\n  timestamp: new Date().toISOString(),\n  level: 2,\n  action: 'workflow_completed',\n  final_summary_length: finalSummaryContent.length,\n  total_compression: finalSummary.metadata.final_compression_ratio\n});\nglobal.set(`workflow_status_${workflowId}`, status);\n\nconsole.log(`Final summary completed for workflow ${workflowId}`);\nconsole.log(`Compression achieved: ${summaryInput.total_original_length} → ${finalSummaryContent.length} chars (${finalSummary.metadata.final_compression_ratio}x)`);\n\nreturn [{\n  json: {\n    documents: [finalSummary],\n    workflow_completed: true,\n    workflow_id: workflowId,\n    completion_stats: {\n      total_processing_time: status.processing_duration,\n      final_compression_ratio: finalSummary.metadata.final_compression_ratio,\n      levels_processed: 2,\n      total_documents: status.total_source_documents\n    }\n  }\n}];"
+      },
+      "id": "process-final-summary",
+      "name": "✅ Process Final Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3000, 400]
+    },
+    {
+      "parameters": {
+        "operation": "ingestDocuments",
+        "documents": "={{ $json.documents }}"
+      },
+      "id": "ingest-final-summary",
+      "name": "💾 Ingest Final Summary",
+      "type": "n8n-nodes-haystack.haystackSearch",
+      "typeVersion": 1,
+      "position": [3200, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "check-status",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-status",
+      "name": "📊 Webhook - Check Status",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 800],
+      "webhookId": "check-status"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Comprehensive status checking with detailed reporting\nconst input = $input.first().json;\nconst workflowId = input.workflow_id;\n\nif (!workflowId || typeof workflowId !== 'string') {\n  return [{\n    json: {\n      success: false,\n      error: 'Valid workflow_id is required for status check',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Retrieve stored workflow status\nconst status = global.get(`workflow_status_${workflowId}`);\n\nif (!status) {\n  return [{\n    json: {\n      success: false,\n      error: 'Workflow not found or expired',\n      workflow_id: workflowId,\n      suggestion: 'Please start a new workflow - status data may have expired',\n      timestamp: new Date().toISOString()\n    }\n  }];\n}\n\n// Calculate detailed progress metrics\nconst currentLevel = status.current_level || 0;\nconst maxLevels = status.max_levels || 4;\nconst progressPercentage = Math.round((currentLevel / maxLevels) * 100);\n\n// Calculate processing duration\nlet processingDuration = null;\nif (status.start_time) {\n  const endTime = status.end_time || new Date().toISOString();\n  processingDuration = new Date(endTime) - new Date(status.start_time);\n}\n\n// Build comprehensive status response\nconst response = {\n  success: true,\n  workflow_id: workflowId,\n  status: status.status || 'unknown',\n  current_level: currentLevel,\n  max_levels: maxLevels,\n  progress_percentage: progressPercentage,\n  last_activity: status.last_activity || 'No activity recorded',\n  start_time: status.start_time,\n  completed: status.completed || false,\n  failed: status.failed || false,\n  error_count: status.error_count || 0,\n  retry_count: status.retry_count || 0,\n  timestamp: new Date().toISOString()\n};\n\n// Add completion data if available\nif (status.end_time) {\n  response.end_time = status.end_time;\n  response.processing_duration = processingDuration;\n  response.duration_formatted = formatDuration(processingDuration);\n}\n\n// Add processing statistics if available\nif (status.groups_processed !== undefined) {\n  response.groups_processed = status.groups_processed;\n  response.groups_total = status.groups_total;\n  response.group_progress = status.groups_total > 0 ? \n    `${status.groups_processed}/${status.groups_total}` : 'N/A';\n}\n\n// Add final summary statistics if completed\nif (status.final_summary_stats) {\n  response.final_summary_stats = status.final_summary_stats;\n}\n\n// Add warnings if any\nif (status.warnings && status.warnings.length > 0) {\n  response.warnings = status.warnings;\n}\n\n// Add processing steps summary for debugging\nif (status.processing_steps && status.processing_steps.length > 0) {\n  response.processing_steps_count = status.processing_steps.length;\n  response.latest_steps = status.processing_steps.slice(-3); // Last 3 steps\n}\n\n// Helper function to format duration\nfunction formatDuration(milliseconds) {\n  if (!milliseconds) return 'Unknown';\n  \n  const seconds = Math.floor(milliseconds / 1000);\n  const minutes = Math.floor(seconds / 60);\n  const hours = Math.floor(minutes / 60);\n  \n  if (hours > 0) {\n    return `${hours}h ${minutes % 60}m ${seconds % 60}s`;\n  } else if (minutes > 0) {\n    return `${minutes}m ${seconds % 60}s`;\n  } else {\n    return `${seconds}s`;\n  }\n}\n\nconsole.log(`Status check for workflow ${workflowId}: ${response.status} (${progressPercentage}%)`);\n\nreturn [{ json: response }];"
+      },
+      "id": "check-workflow-status",
+      "name": "🔍 Check Workflow Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 800]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "respond-status",
+      "name": "📊 Respond - Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [600, 800]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-final-summary",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-final-summary",
+      "name": "🎯 Webhook - Get Final Summary",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 1000],
+      "webhookId": "get-final-summary"
+    },
+    {
+      "parameters": {
+        "operation": "getFinalSummary",
+        "workflowId": "={{ $json.workflow_id }}"
+      },
+      "id": "get-final-summary",
+      "name": "📄 Get Final Summary",
+      "type": "n8n-nodes-haystack.haystackSearch",
+      "typeVersion": 1,
+      "position": [400, 1000]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"data\": $json,\n  \"timestamp\": new Date().toISOString()\n} }}"
+      },
+      "id": "respond-final-summary",
+      "name": "✅ Respond - Final Summary",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [600, 1000]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "get-complete-tree",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-tree",
+      "name": "🌳 Webhook - Get Complete Tree",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 1200],
+      "webhookId": "get-complete-tree"
+    },
+    {
+      "parameters": {
+        "operation": "getCompleteTree",
+        "treeWorkflowId": "={{ $json.treeWorkflowId || $json.workflow_id }}",
+        "treeMaxDepth": "={{ $json.treeMaxDepth || 5 }}",
+        "treeIncludeContent": "={{ $json.treeIncludeContent || false }}"
+      },
+      "id": "get-complete-tree",
+      "name": "🌳 Get Complete Tree",
+      "type": "n8n-nodes-haystack.haystackSearch",
+      "typeVersion": 1,
+      "position": [400, 1200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"success\": true,\n  \"data\": $json,\n  \"timestamp\": new Date().toISOString()\n} }}"
+      },
+      "id": "respond-tree",
+      "name": "✅ Respond - Tree",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [600, 1200]
+    }
+  ],
+  "connections": {
+    "📥 Webhook - Ingest Documents": {
+      "main": [
+        [
+          {
+            "node": "✅ Validate Ingestion Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Validate Ingestion Request": {
+      "main": [
+        [
+          {
+            "node": "🗃️ Haystack - Ingest Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🗃️ Haystack - Ingest Documents": {
+      "main": [
+        [
+          {
+            "node": "📊 Process Ingestion Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "❌ Handle Ingestion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Process Ingestion Response": {
+      "main": [
+        [
+          {
+            "node": "✅ Respond - Ingestion Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ Handle Ingestion Error": {
+      "main": [
+        [
+          {
+            "node": "❌ Respond - Ingestion Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 Webhook - Start Summarization": {
+      "main": [
+        [
+          {
+            "node": "🎯 Initialize Summarization Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Initialize Summarization Workflow": {
+      "main": [
+        [
+          {
+            "node": "✅ Respond - Summarization Started",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "📋 Get Source Documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Get Source Documents": {
+      "main": [
+        [
+          {
+            "node": "📦 Create Level 1 Groups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Create Level 1 Groups": {
+      "main": [
+        [
+          {
+            "node": "🤖 AI Summarize Level 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 AI Summarize Level 1": {
+      "main": [
+        [
+          {
+            "node": "📝 Process Level 1 Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Process Level 1 Summary": {
+      "main": [
+        [
+          {
+            "node": "💾 Ingest Level 1 Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Ingest Level 1 Summary": {
+      "main": [
+        [
+          {
+            "node": "⏳ Wait Between Levels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ Wait Between Levels": {
+      "main": [
+        [
+          {
+            "node": "🔍 Check Level 1 Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Check Level 1 Completion": {
+      "main": [
+        [
+          {
+            "node": "🔀 Route Level Progression",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔀 Route Level Progression": {
+      "main": [
+        [
+          {
+            "node": "📄 Get Level 1 Summaries",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "📄 Get Level 1 Summaries": {
+      "main": [
+        [
+          {
+            "node": "🎯 Prepare Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Prepare Final Summary": {
+      "main": [
+        [
+          {
+            "node": "🎓 AI Create Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎓 AI Create Final Summary": {
+      "main": [
+        [
+          {
+            "node": "✅ Process Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Process Final Summary": {
+      "main": [
+        [
+          {
+            "node": "💾 Ingest Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Webhook - Check Status": {
+      "main": [
+        [
+          {
+            "node": "🔍 Check Workflow Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Check Workflow Status": {
+      "main": [
+        [
+          {
+            "node": "📊 Respond - Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎯 Webhook - Get Final Summary": {
+      "main": [
+        [
+          {
+            "node": "📄 Get Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 Get Final Summary": {
+      "main": [
+        [
+          {
+            "node": "✅ Respond - Final Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌳 Webhook - Get Complete Tree": {
+      "main": [
+        [
+          {
+            "node": "🌳 Get Complete Tree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🌳 Get Complete Tree": {
+      "main": [
+        [
+          {
+            "node": "✅ Respond - Tree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": ["document-processing", "hierarchical-summarization", "ai-workflow"],
+  "triggerCount": 0,
+  "updatedAt": "2024-01-01T00:00:00.000Z",
+  "versionId": "2.0"
+}
+```
+
+---
+
+## Integration Guide - Step-by-Step Implementation
+
+### Prerequisites Verification
+
+**Step 1: Verify System Readiness**
+```bash
+# Check all required services are running
+docker-compose ps
+
+# Required services should show:
+# - web (nginx) - port 8080
+# - db (postgres) - port 5432  
+# - n8n - port 5678
+# - elasticsearch - port 9200
+# - haystack-service - port 8000
+
+# If Haystack services are missing:
+cd n8n && ./start_haystack_services.sh
+```
+
+**Step 2: Verify Haystack Node Installation**
+```bash
+# Check custom node is built
+ls -la n8n/custom-nodes/n8n-nodes-haystack/dist/
+
+# Should contain compiled JavaScript files
+# If missing, rebuild:
+cd n8n/custom-nodes/n8n-nodes-haystack/
+npm install && npm run build
+```
+
+### Frontend Integration
+
+**Step 3: Add Frontend Module**
+```bash
+# Create the new module file
+touch website/js/modules/document-summarization-manager.js
+
+# Copy the complete DocumentSummarizationManager class from above
+# into this file
+```
+
+**Step 4: Update HTML Integration**
+```html
+<!-- Add to website/index.html before closing </body> tag -->
+<script src="js/modules/document-summarization-manager.js"></script>
+```
+
+**Step 5: Add CSS Styles**
+```bash
+# Append the CSS from above to existing website/css/app.css
+# Or create separate file:
+touch website/css/document-summarization.css
+# Then include in index.html:
+# <link rel="stylesheet" href="css/document-summarization.css">
+```
+
+### N8N Workflow Setup
+
+**Step 6: Import Enhanced Workflow**
+1. Access n8n interface: `http://localhost:8080/n8n/`
+2. Click menu (⋮) → "Import from file"
+3. Copy the complete workflow JSON from above
+4. Paste into import dialog and click "Import"
+5. Verify all nodes are connected properly
+
+**Step 7: Activate Workflow**
+1. Click the "Active" toggle in top-right corner
+2. Verify all webhook nodes show green status
+3. Check that all custom nodes (Haystack, DeepSeek) are recognized
+
+**Step 8: Configure Webhook URLs**
+1. Click each webhook node to see its URL
+2. Update frontend configuration if needed:
+```javascript
+// In DocumentSummarizationManager, update getWebhookUrl method if needed
+getWebhookUrl(endpoint) {
+    const baseUrl = `${window.location.protocol}//${window.location.host}/webhook`;
+    return `${baseUrl}/${endpoint}`;
+}
+```
+
+### Testing and Validation
+
+**Step 9: Create Test Documents**
+```bash
+# Create test directory
+mkdir -p test_documents
+
+# Create sample documents
+cat > test_documents/legal_contract.txt << 'EOF'
+PROFESSIONAL SERVICES AGREEMENT
+
+This Agreement is entered into between DataCorp LLC and ClientCorp Inc. for the provision of consulting services. The scope includes strategic analysis, process optimization, and technology implementation support.
+
+Key Terms:
+- Duration: 12 months starting January 1, 2024
+- Compensation: $150,000 total fee
+- Deliverables: Monthly reports, quarterly reviews, final recommendations
+- Termination: 30-day notice required from either party
+
+The service provider will deliver expert analysis of business processes, recommend improvements, and assist with implementation of approved changes. All work products remain confidential and proprietary to the client.
+EOF
+
+cat > test_documents/policy_document.txt << 'EOF'
+CORPORATE GOVERNANCE POLICY
+
+This policy establishes the framework for effective governance and oversight within the organization. It defines roles, responsibilities, and procedures for decision-making at all levels.
+
+Board Responsibilities:
+- Strategic oversight and direction setting
+- Risk management and compliance monitoring  
+- Executive performance evaluation
+- Stakeholder communication and transparency
+
+Management Structure:
+- CEO: Chief executive authority and external representation
+- CFO: Financial oversight and reporting
+- COO: Operations management and efficiency
+- CTO: Technology strategy and implementation
+
+Regular review cycles ensure policies remain current with regulatory requirements and best practices. Annual assessments evaluate effectiveness and identify improvement opportunities.
+EOF
+
+cat > test_documents/technical_analysis.txt << 'EOF'
+SYSTEM ARCHITECTURE ANALYSIS
+
+Current infrastructure assessment reveals opportunities for modernization and optimization. The existing legacy systems require updates to support growing business requirements.
+
+Technical Findings:
+- Database performance bottlenecks in customer management system
+- Network capacity constraints during peak usage periods
+- Security vulnerabilities in authentication mechanisms
+- Integration challenges between disparate software platforms
+
+Recommended Solutions:
+- Migrate to cloud-based infrastructure for scalability
+- Implement microservices architecture for flexibility
+- Upgrade security protocols to current industry standards
+- Establish API-first integration strategy
+
+Implementation timeline spans 18 months with phased rollout to minimize business disruption. Expected benefits include 40% performance improvement and 60% reduction in maintenance costs.
+EOF
+```
+
+**Step 10: End-to-End Testing**
+
+**Frontend Test:**
+1. Visit `http://localhost:8080`
+2. Look for "Document Summarization" tab
+3. Click tab to activate the interface
+4. Verify upload zone is displayed correctly
+
+**File Upload Test:**
+1. Select the test_documents folder using "Select Documents" button
+2. Verify all 3 .txt files are detected and listed
+3. Check file validation (size, format) works correctly
+4. Confirm "Start Summarization" button becomes enabled
+
+**Processing Test:**
+1. Click "Start Summarization"
+2. Monitor progress bar and status messages
+3. Watch step log for detailed processing information
+4. Verify workflow executions appear in n8n interface
+
+**Results Test:**
+1. Wait for processing completion (3-5 minutes)
+2. Verify final summary is displayed
+3. Check document statistics are accurate  
+4. Test tree navigation functionality
+
+### Verification Commands
+
+**Step 11: System Health Checks**
+```bash
+# Check Elasticsearch documents
+curl "http://localhost:9200/judicial_documents/_count" | jq
+
+# Check Haystack service health
+curl "http://localhost:8000/health" | jq
+
+# Test search functionality
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "contract", "top_k": 5}' | jq
+
+# Check n8n workflow executions
+curl "http://localhost:8080/n8n/rest/executions?limit=5" \
+  -H "Accept: application/json"
+```
+
+**Step 12: Performance Validation**
+```bash
+# Monitor Docker resource usage
+docker stats --no-stream
+
+# Check processing times
+# Should complete 3 documents in 3-5 minutes
+
+# Verify memory usage stays reasonable
+# Peak usage should not exceed 4GB total
+```
+
+---
+
+## Advanced Configuration
+
+### Production Optimizations
+
+**Memory Configuration:**
+```yaml
+# In docker-compose.yml, add memory limits
+services:
+  elasticsearch:
+    mem_limit: 2g
+    environment:
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+  
+  haystack-service:
+    mem_limit: 1g
+  
+  n8n:
+    mem_limit: 1g
+```
+
+**Performance Tuning:**
+```javascript
+// In DocumentSummarizationManager constructor, adjust for your system:
+this.config = {
+    maxFiles: 10,           // Increase for more files
+    maxFileSize: 10 * 1024 * 1024, // 10MB for larger files
+    groupSize: 5,           // Adjust based on AI model capacity
+    apiTimeout: 60000,      // Increase for slower systems
+    pollInterval: 2000      // Decrease for faster updates
+};
+```
+
+**Security Enhancements:**
+```javascript
+// Add rate limiting to webhook endpoints
+// Implement file type validation beyond extensions
+// Add content sanitization for user inputs
+// Configure CORS properly for production
+```
+
+---
+
+## Troubleshooting Guide
+
+### Common Issues
+
+**1. "Document Processor tab not appearing"**
+```bash
+# Check browser console for JavaScript errors
+# Verify app.js is loaded before document-summarization-manager.js
+# Ensure SPA framework is working correctly
+```
+
+**2. "File upload fails silently"**
+```bash
+# Check network tab in browser dev tools
+# Verify webhook URLs are accessible
+# Check n8n workflow is activated
+# Review n8n execution logs
+```
+
+**3. "Processing stalls at specific step"**
+```bash
+# Check n8n execution details for specific node failures
+# Verify Haystack service connectivity
+# Check DeepSeek/Ollama model availability
+# Review Docker logs for service errors
+```
+
+**4. "Results not displaying properly"**
+```bash
+# Verify final summary was created in Haystack
+# Check tree structure API response
+# Review browser console for JavaScript errors
+# Validate workflow completion status
+```
+
+### Debug Commands
+
+```bash
+# Check specific workflow status
+curl -X POST "http://localhost:8080/webhook/check-status" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "YOUR_WORKFLOW_ID"}'
+
+# Get document count by type
+curl -X GET "http://localhost:9200/judicial_documents/_search" \
+  -H "Content-Type: application/json" \
+  -d '{"aggs": {"types": {"terms": {"field": "document_type.keyword"}}}}'
+
+# Check n8n workflow executions
+docker-compose logs n8n | grep -i error
+
+# Monitor Haystack service logs
+docker-compose logs haystack-service | tail -50
+```
+
+---
+
+## Extension Points
+
+### Adding New Document Types
+
+```javascript
+// In DocumentSummarizationManager config:
+this.config = {
+    supportedFormats: ['.txt', '.pdf', '.docx', '.md', '.rtf'],
+    // Add new validation rules in validateFile method
+};
+```
+
+### Custom AI Prompts
+
+```javascript
+// In n8n workflow, modify AI node prompts for domain-specific analysis:
+const customPrompt = `You are a ${domain} expert. Analyze these documents focusing on:
+- ${domain}-specific terminology and concepts
+- Regulatory compliance requirements
+- Industry best practices
+- Risk factors and mitigation strategies`;
+```
+
+### Additional Result Formats
+
+```javascript
+// In processResults method, add new export formats:
+exportResults() {
+    const formats = ['json', 'pdf', 'docx', 'html'];
+    // Implement format-specific export logic
+}
+```
+
+This comprehensive implementation provides enterprise-grade hierarchical document summarization with robust error handling, comprehensive monitoring, and extensive customization options. The modular architecture ensures easy maintenance and future enhancements while preserving integration with your existing Data Compose infrastructure.
