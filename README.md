@@ -6,9 +6,10 @@ A sophisticated web application that integrates workflow automation (n8n) with A
 
 ### Prerequisites
 - Docker & Docker Compose
+- WSL, linux, or MacOS (to utilize docker and docker compose)
 - 4GB+ available RAM
 - Modern web browser
-- (Optional) Ollama with DeepSeek model for AI features
+- (Optional) Ollama with DeepSeek model for AI features (not available for windows yet)
 
 ### 1. Clone the repository
 ```bash
@@ -19,7 +20,7 @@ cd data_compose
 ### 2. Configure environment variables
 ```bash
 cp .env.example .env
-# Edit .env with your secure credentials
+# Edit .env with your secure credentials --> not fully set up, this is a placeholder for deployment requirements
 ```
 
 ### 3. Start Docker Compose
@@ -40,6 +41,45 @@ docker-compose up -d
 
 ### 6. Test the AI Chat
 Navigate to the "AI Chat" tab in the web interface and start chatting!
+
+## Notes for WSL:
+***WSL and docker can be finnicky when working together, here are some methods to check and fix common issues
+1. before trying to start docker desktop, execute the following commands in sequence:
+```powershell
+wsl --shutdown
+```
+```powershell
+wsl -d ubuntu
+```
+2. From your newly opened ubuntu (or other distribution) instance, execute this:
+```bash
+docker version
+```
+```bash
+docker ps
+```
+If both of those processes return results that indicate docker is connected to your WSL instance, cd to your data_compose clone and execute:
+```bash
+docker compose up -d
+```
+and follow the rest of the quickstart guide to test things out.
+If bash don't recognize docker commands, go into the docker desktop dashboard --> settings --> resources --> advanced --> WSL integration, and select your WSL integration (if using ubuntu, it will show up ther as an option) then restart docker.
+
+## Common Issues
+When starting up with this project, there are a few trip ups that are common, especially given the early development phase
+1. **Inactive workflow**
+  - When using the developer (or production) interface, if the n8n workflow is not activated the workflow will not run. This means the webhook won't pick up any of the signals sent to it from the UI.
+2. **Unresponsive webhook**
+  - When the webhook is not responsive, the easiest method to check is to use 'curl' through the CLI:
+  ```bash
+  curl -X POST \
+    -H "Content-Type: application/json" \
+    -d '{"test": "data", "timestamp": "2025-06-09"}' \
+    -v \
+    https://your-n8n-instance.com/webhook/your-webhook-id
+  ```
+  if the webhook test is listening, it should return a response from the default chat setup out of workflow_json
+
 
 ## Overview
 
