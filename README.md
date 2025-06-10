@@ -43,7 +43,7 @@ docker-compose up -d
 Navigate to the "AI Chat" tab in the web interface and start chatting!
 
 ## Notes for WSL:
-***WSL and docker can be finnicky when working together, here are some methods to check and fix common issues
+***WSL and docker can be finnicky when working together, here are some methods to check and fix common issues:**
 1. before trying to start docker desktop, execute the following commands in sequence:
 ```powershell
 wsl --shutdown
@@ -66,11 +66,11 @@ and follow the rest of the quickstart guide to test things out.
 If bash don't recognize docker commands, go into the docker desktop dashboard --> settings --> resources --> advanced --> WSL integration, and select your WSL integration (if using ubuntu, it will show up ther as an option) then restart docker.
 
 ## Common Issues
-When starting up with this project, there are a few trip ups that are common, especially given the early development phase
+When starting up with this project, there are a few common issues, especially given the early development phase.
 1. **Inactive workflow**
   - When using the developer (or production) interface, if the n8n workflow is not activated the workflow will not run. This means the webhook won't pick up any of the signals sent to it from the UI.
 2. **Unresponsive webhook**
-  - When the webhook is not responsive, the easiest method to check is to use 'curl' through the CLI:
+  - When the webhook is not responsive, the easiest method to check is to use `curl` through the CLI:
   ```bash
   curl -X POST \
     -H "Content-Type: application/json" \
@@ -79,6 +79,8 @@ When starting up with this project, there are a few trip ups that are common, es
     https://your-n8n-instance.com/webhook/your-webhook-id
   ```
   if the webhook test is listening, it should return a response from the default chat setup out of workflow_json
+3. **No session ID**
+  - With the AI agent node in workflow_json/web_UI_basic, having the simple memory in place without a session ID halts the workflow, and can be temporarily fixed when testing with curl by removing the simple memory node, or by simply filling in any sequence of numbers as a fixed key value.
 
 
 ## Overview
