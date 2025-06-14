@@ -1,0 +1,52 @@
+{
+  "name": "BitNet Chat Example",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "chat",
+        "serverMode": "external",
+        "serverUrl": "http://host.docker.internal:8081",
+        "messages": "Hello! Tell me about BitNet in one sentence.",
+        "model": "models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf",
+        "additionalOptions": {
+          "temperature": 0.7,
+          "maxTokens": 100
+        }
+      },
+      "id": "bitnet-chat",
+      "name": "BitNet Chat",
+      "type": "bitnet",
+      "typeVersion": 1,
+      "position": [450, 300]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "BitNet Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [],
+  "meta": {
+    "instanceId": "bitnet-example"
+  }
+}

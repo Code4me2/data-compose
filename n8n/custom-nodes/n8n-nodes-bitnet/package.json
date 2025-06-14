@@ -1,0 +1,56 @@
+{
+  "name": "n8n-nodes-bitnet",
+  "version": "0.1.0",
+  "description": "n8n node for BitNet 1-bit LLM inference",
+  "keywords": [
+    "n8n-node",
+    "bitnet",
+    "llm",
+    "ai",
+    "inference"
+  ],
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/n8n-nodes-bitnet.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "lint": "eslint nodes --ext .ts",
+    "lintfix": "eslint nodes --ext .ts --fix",
+    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/nodes/BitNet/BitNet.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.26",
+    "@typescript-eslint/eslint-plugin": "^5.29.0",
+    "@typescript-eslint/parser": "^5.29.0",
+    "eslint": "^8.20.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-n8n-nodes-base": "^1.5.4",
+    "eslint-plugin-prettier": "^4.0.0",
+    "gulp": "^4.0.2",
+    "n8n-workflow": "^1.68.0",
+    "prettier": "^2.7.1",
+    "typescript": "^4.7.4"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "^1.68.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.3"
+  }
+}

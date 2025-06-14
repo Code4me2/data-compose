@@ -1,0 +1,53 @@
+version: '3.7'
+
+services:
+  bitnet:
+    image: ghcr.io/microsoft/bitnet:latest
+    container_name: bitnet-server
+    ports:
+      - "8081:8080"  # Map to 8081 to avoid conflict with main web service
+    volumes:
+      # Mount local directory for models
+      - ./bitnet-models:/models
+    environment:
+      # Default model path (adjust based on your model location)
+      - MODEL_PATH=/models/bitnet-b1.58.gguf
+      # Performance settings
+      - N_THREADS=4
+      - N_GPU_LAYERS=0  # Set to number of layers to offload to GPU if available
+      - CONTEXT_SIZE=2048
+    command: >
+      python run_inference_server.py
+      -m ${MODEL_PATH}
+      --host 0.0.0.0
+      --port 8080
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Alternative: Build BitNet from source
+  # bitnet-build:
+  #   build:
+  #     context: ../../bitnet-inference/BitNet
+  #     dockerfile: Dockerfile
+  #   container_name: bitnet-server
+  #   ports:
+  #     - "8081:8080"
+  #   volumes:
+  #     - ./bitnet-models:/models
+  #   environment:
+  #     - MODEL_PATH=/models/bitnet-b1.58.gguf
+  #   command: python run_inference_server.py -m ${MODEL_PATH} --host 0.0.0.0
+  #   networks:
+  #     - app-network
+  #   restart: unless-stopped
+
+networks:
+  app-network:
+    external: true
+    name: data-compose_default
