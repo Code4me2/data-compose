@@ -42,6 +42,7 @@ services:
         condition: service_healthy
     volumes:
       - ./n8n/haystack-service:/app
+      - haystack_models:/app/models
     networks:
       - backend
     restart: unless-stopped
@@ -49,11 +50,13 @@ services:
 volumes:
   elasticsearch_data:
     driver: local
+  haystack_models:
+    driver: local
 
 networks:
   backend:
-    name: data_compose_backend
     external: true
+    name: data-compose_backend
   frontend:
-    name: data_compose_frontend
     external: true
+    name: data-compose_frontend

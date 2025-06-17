@@ -4,14 +4,14 @@ This directory contains the Elasticsearch-based document processing service for 
 
 ## Current Implementation
 
-**Active Service**: `haystack_service_simple.py`
+**Active Service**: `haystack_service.py`
 
-This is a simplified implementation that provides all necessary features using direct Elasticsearch client instead of the full Haystack library.
+This implementation provides all necessary features using direct Elasticsearch client for better performance and reliability.
 
 ## Files
 
-- `haystack_service_simple.py` - Main API service (currently active)
-- `haystack_service.py` - Full Haystack implementation (not currently used due to dependency issues)
+- `haystack_service.py` - Main API service
+- `haystack_service_full.py.bak` - Alternative implementation with full Haystack library (archived)
 - `elasticsearch_setup.py` - Creates and configures the Elasticsearch index
 - `test_integration.py` - Integration tests for the service
 - `requirements-minimal.txt` - Python dependencies for the simple implementation
@@ -78,16 +78,12 @@ curl -X POST http://localhost:8000/ingest \
 
 ## Why Two Implementations?
 
-1. **haystack_service_simple.py** (Active)
-   - Direct Elasticsearch client
-   - No Haystack library dependencies
-   - Simpler, more reliable
-   - All features implemented
+The current implementation (`haystack_service.py`) uses direct Elasticsearch client for:
+   - Better performance and control
+   - Fewer dependencies
+   - More reliable operation
+   - All required features
 
-2. **haystack_service.py** (Inactive)
-   - Full Haystack 2.x integration
-   - Requires problematic `elasticsearch-haystack` package
-   - More complex pipeline approach
-   - Currently has installation issues
+An alternative implementation using the full Haystack 2.x library is archived as `haystack_service_full.py.bak` but is not recommended due to dependency complexity.
 
 The simple implementation provides all needed functionality without the complexity and dependency issues of the full Haystack library.

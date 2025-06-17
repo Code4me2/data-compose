@@ -4,12 +4,9 @@
 
 This document provides the complete setup and configuration for the Haystack/Elasticsearch integration in the Data Compose project.
 
-## Current Implementation
+## Implementation Overview
 
-### Active Service
-- **Service File**: `haystack_service_simple.py` (NOT the full Haystack library version)
-- **Reason**: Direct Elasticsearch integration without Haystack library dependencies
-- **Features**: Full document ingestion, search (BM25/Vector/Hybrid), hierarchy tracking, tree navigation
+The Haystack integration uses direct Elasticsearch integration for optimal performance, providing document import from PostgreSQL, advanced search capabilities (BM25/Vector/Hybrid), and hierarchical document navigation.
 
 ## Architecture
 
@@ -27,7 +24,7 @@ data_compose/                    # Root directory
 │   ├── docker-compose.haystack.yml  # Supplementary Haystack services
 │   ├── haystack-service/
 │   │   ├── Dockerfile
-│   │   ├── haystack_service_simple.py  # Active implementation
+│   │   ├── haystack_service.py         # Main API implementation
 │   │   ├── elasticsearch_setup.py
 │   │   └── requirements-minimal.txt    # Active requirements
 │   └── custom-nodes/
@@ -38,6 +35,17 @@ data_compose/                    # Root directory
 │           │       └── haystack.svg
 │           ├── package.json
 │           └── dist/                   # Compiled node files
+```
+
+## Important: Pipeline Architecture
+
+**The Haystack node works WITH the HierarchicalSummarization node, not instead of it:**
+
+```
+1. HierarchicalSummarization → Creates summaries → PostgreSQL
+2. PostgreSQL Query → Retrieves processed documents
+3. Haystack Import → Indexes in Elasticsearch
+4. Haystack Search → Provides search interface
 ```
 
 ## Installation
@@ -67,33 +75,58 @@ data_compose/                    # Root directory
 
 ## Service Endpoints
 
-The Haystack service provides 10 endpoints:
+The Haystack service provides the following endpoints:
 
-1. `GET /health` - Service health check
-2. `POST /ingest` - Store documents with hierarchy metadata
-3. `POST /search` - Search using hybrid/vector/BM25 methods
-4. `POST /hierarchy` - Get document relationships
-5. `POST /get_by_stage` - Retrieve documents by workflow stage
-6. `POST /update_status` - Update document processing status
-7. `POST /batch_hierarchy` - Get hierarchy for multiple documents
-8. `GET /get_final_summary/{workflow_id}` - Get final summary document
-9. `GET /get_complete_tree/{workflow_id}` - Get complete hierarchical tree
-10. `GET /get_document_with_context/{document_id}` - Get document with navigation context
+1. **`GET /health`** - Service health check
+   - Returns: Elasticsearch connection status, document count, embedding model status
+   
+2. **`POST /import_from_node`** - Import documents from PostgreSQL query results
+   - Input: Document with content, summary, hierarchy info, and metadata
+   - Returns: Import status with document ID
+   
+3. **`POST /search`** - Search using hybrid/vector/BM25 methods
+   - Input: Query text, search type, filters
+   - Returns: Matching documents with scores
+   
+4. **`POST /hierarchy`** - Get document relationships
+   - Input: Document ID, depth options
+   - Returns: Parent and child documents
+   
+5. **`POST /batch_hierarchy`** - Get hierarchy for multiple documents efficiently
+   - Input: Array of document IDs
+   - Returns: Hierarchy information for all documents in one request
+   
+6. **`GET /get_final_summary/{workflow_id}`** - Get final summary document
+   - Returns: The top-level summary for a workflow with tree metadata
+   
+7. **`GET /get_complete_tree/{workflow_id}`** - Get complete hierarchical tree
+   - Returns: Full tree structure with configurable depth and content inclusion
+   
+8. **`GET /get_document_with_context/{document_id}`** - Get document with navigation context
+   - Returns: Document content with breadcrumb path and sibling information
 
 ## Using the n8n Node
 
-The custom Haystack node provides 10 operations:
+The custom Haystack node provides 8 operations focused on search and retrieval:
 
-1. **Ingest Documents** - Batch document ingestion with hierarchy
+1. **Import from Previous Node** - Import hierarchical documents from PostgreSQL
 2. **Search** - Hybrid/vector/BM25 search capabilities
 3. **Get Hierarchy** - Retrieve document relationships
 4. **Health Check** - Verify service status
-5. **Get By Stage** - Get documents by processing stage
-6. **Update Status** - Update document processing status
-7. **Batch Hierarchy** - Get hierarchy for multiple documents
-8. **Get Final Summary** - Retrieve workflow final summary
-9. **Get Complete Tree** - Get full hierarchical structure
-10. **Get Document with Context** - Get document with navigation
+5. **Batch Hierarchy** - Get hierarchy for multiple documents
+6. **Get Final Summary** - Retrieve workflow final summary
+7. **Get Complete Tree** - Get full hierarchical structure
+8. **Get Document with Context** - Get document with navigation
+
+### Integration with Hierarchical Summarization
+
+1. Use the Hierarchical Summarization node to process documents
+2. Query the results with PostgreSQL node:
+   ```sql
+   SELECT * FROM hierarchical_documents WHERE batch_id = 'your-batch-id'
+   ```
+3. Import to Haystack with field mapping configuration
+4. Search and navigate the imported hierarchy
 
 ## Docker Commands
 
@@ -120,9 +153,38 @@ docker-compose -f docker-compose.yml -f n8n/docker-compose.haystack.yml down -v
 After services are running, test the integration:
 
 ```bash
+# Test health endpoint
+curl http://localhost:8000/health | jq
+
+# For full integration testing:
 cd haystack-service
 python test_integration.py
 ```
+
+## Troubleshooting
+
+**Service won't start?**
+```bash
+# Check if ports are in use
+lsof -i :8000  # Haystack service
+lsof -i :9200  # Elasticsearch
+```
+
+**Can't find documents?**
+- Make sure you imported them first (Import from Previous Node)
+- Check the workflow_id matches your documents
+
+**Need logs?**
+```bash
+docker-compose logs haystack-service -f
+```
+
+## Example Workflow
+
+1. Process documents with Hierarchical Summarization node
+2. Query PostgreSQL for documents to import
+3. Use Haystack Import operation with field mapping
+4. Search across summaries and navigate hierarchy
 
 ## Network Architecture
 

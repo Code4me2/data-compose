@@ -30,89 +30,140 @@ export class HaystackSearch implements INodeType {
         noDataExpression: true,
         options: [
           {
-            name: 'Ingest Documents',
-            value: 'ingest',
-            description: 'Ingest documents with hierarchy metadata',
-            action: 'Ingest documents',
+            name: 'Import from Previous Node',
+            value: 'importFromNode',
+            description: 'Import hierarchical documents from previous node (e.g., PostgreSQL query)',
+            action: 'Import documents into Elasticsearch',
           },
           {
             name: 'Search',
             value: 'search',
-            description: 'Search documents using hybrid search',
-            action: 'Search documents',
+            description: 'Search documents using keyword, semantic, or hybrid methods',
+            action: 'Search indexed documents',
           },
           {
             name: 'Get Hierarchy',
             value: 'hierarchy',
-            description: 'Get document hierarchy and relationships',
-            action: 'Get document hierarchy',
+            description: 'Navigate parent-child relationships for a document',
+            action: 'Explore document tree',
           },
           {
             name: 'Health Check',
             value: 'health',
-            description: 'Check service health status',
-            action: 'Check service health',
-          },
-          {
-            name: 'Get By Stage',
-            value: 'getByStage',
-            description: 'Get documents at specific workflow stage',
-            action: 'Get documents by processing stage',
-          },
-          {
-            name: 'Update Status',
-            value: 'updateStatus',
-            description: 'Update document processing status',
-            action: 'Update document workflow status',
+            description: 'Verify Elasticsearch and API service connectivity',
+            action: 'Check system status',
           },
           {
             name: 'Batch Hierarchy',
             value: 'batchHierarchy',
-            description: 'Get hierarchy for multiple documents',
-            action: 'Get batch document relationships',
+            description: 'Efficiently retrieve relationships for multiple documents',
+            action: 'Batch hierarchy lookup',
           },
           {
             name: 'Get Final Summary',
             value: 'getFinalSummary',
-            description: 'Get the final summary document for a workflow',
-            action: 'Get workflow final summary',
+            description: 'Retrieve the top-level summary for a workflow',
+            action: 'Get final summary',
           },
           {
             name: 'Get Complete Tree',
             value: 'getCompleteTree',
-            description: 'Get complete hierarchical tree structure for a workflow',
-            action: 'Get workflow tree structure',
+            description: 'Visualize complete document hierarchy as a tree',
+            action: 'Get document tree',
           },
           {
             name: 'Get Document with Context',
             value: 'getDocumentWithContext',
-            description: 'Get document content with tree navigation context',
-            action: 'Get document with navigation context',
+            description: 'Retrieve document with breadcrumb trail and siblings',
+            action: 'Get document context',
           },
         ],
-        default: 'search',
+        default: 'importFromNode',
       },
-      // Ingest operation parameters
+      // Import operation parameters
       {
-        displayName: 'Documents',
-        name: 'documents',
-        type: 'json',
-        default: '[]',
-        required: true,
+        displayName: 'Field Mapping',
+        name: 'fieldMapping',
+        type: 'collection',
+        placeholder: 'Add Field Mapping',
+        default: {
+          contentField: 'content',
+          summaryField: 'summary',
+          idField: 'id',
+          parentIdField: 'parent_id',
+          childIdsField: 'child_ids',
+          hierarchyLevelField: 'hierarchy_level',
+          batchIdField: 'batch_id'
+        },
         displayOptions: {
           show: {
-            operation: ['ingest'],
+            operation: ['importFromNode'],
           },
         },
-        description: 'Array of documents to ingest. Each document should have content, metadata, document_type, and hierarchy information.',
-        placeholder: `[
-  {
-    "content": "Document content here",
-    "metadata": {"source": "file.pdf", "page": 1},
-    "document_type": "source_document",
-    "hierarchy_level": 0
-  }
-]`,
+        description: 'Map fields from previous node to document structure',
+        options: [
+          {
+            displayName: 'Content Field Name',
+            name: 'contentField',
+            type: 'string',
+            default: 'content',
+            description: 'Field containing document content',
+          },
+          {
+            displayName: 'Summary Field Name',
+            name: 'summaryField',
+            type: 'string',
+            default: 'summary',
+            description: 'Field containing document summary',
+          },
+          {
+            displayName: 'ID Field Name',
+            name: 'idField',
+            type: 'string',
+            default: 'id',
+            description: 'Field containing document ID',
+          },
+          {
+            displayName: 'Parent ID Field Name',
+            name: 'parentIdField',
+            type: 'string',
+            default: 'parent_id',
+            description: 'Field containing parent document ID',
+          },
+          {
+            displayName: 'Child IDs Field Name',
+            name: 'childIdsField',
+            type: 'string',
+            default: 'child_ids',
+            description: 'Field containing array of child document IDs',
+          },
+          {
+            displayName: 'Hierarchy Level Field Name',
+            name: 'hierarchyLevelField',
+            type: 'string',
+            default: 'hierarchy_level',
+            description: 'Field containing hierarchy level',
+          },
+          {
+            displayName: 'Batch/Workflow ID Field Name',
+            name: 'batchIdField',
+            type: 'string',
+            default: 'batch_id',
+            description: 'Field containing batch or workflow ID',
+          },
+        ],
+      },
+      {
+        displayName: 'Generate Embeddings',
+        name: 'generateEmbeddings',
+        type: 'boolean',
+        default: true,
+        displayOptions: {
+          show: {
+            operation: ['importFromNode'],
+          },
+        },
+        description: 'Whether to generate embeddings for imported documents',
       },
       // Search operation parameters
       {
@@ -193,7 +244,7 @@ export class HaystackSearch implements INodeType {
           },
         },
         description: 'Additional filters to apply to search',
-        placeholder: '{"document_type": "summary", "hierarchy.level": 2}',
+        placeholder: '{"document_type": "summary", "hierarchy_level": 2}',
       },
       // Hierarchy operation parameters
       {
@@ -244,161 +295,6 @@ export class HaystackSearch implements INodeType {
           },
         },
         description: 'Maximum depth to traverse in hierarchy',
-      },
-      // Get By Stage operation parameters
-      {
-        displayName: 'Stage Type',
-        name: 'stageType',
-        type: 'options',
-        options: [
-          {
-            name: 'Ready for Chunking',
-            value: 'ready_chunk',
-            description: 'Source documents ready to be split into chunks',
-          },
-          {
-            name: 'Ready for Summarization',
-            value: 'ready_summarize',
-            description: 'Chunks ready for AI summarization',
-          },
-          {
-            name: 'Ready for Aggregation',
-            value: 'ready_aggregate',
-            description: 'Summaries ready to be combined into higher-level summaries',
-          },
-          {
-            name: 'Processing Complete',
-            value: 'completed',
-            description: 'Documents that have completed processing',
-          },
-        ],
-        default: 'ready_summarize',
-        required: true,
-        displayOptions: {
-          show: {
-            operation: ['getByStage'],
-          },
-        },
-        description: 'Type of processing stage to query',
-      },
-      {
-        displayName: 'Hierarchy Level',
-        name: 'hierarchyLevel',
-        type: 'number',
-        default: 1,
-        displayOptions: {
-          show: {
-            operation: ['getByStage'],
-          },
-        },
-        description: 'Specific hierarchy level to filter (optional, 0 for all levels)',
-      },
-      // Update Status operation parameters
-      {
-        displayName: 'Document ID',
-        name: 'statusDocumentId',
-        type: 'string',
-        default: '',
-        required: true,
-        displayOptions: {
-          show: {
-            operation: ['updateStatus'],
-          },
-        },
-        description: 'ID of document to update',
-        placeholder: 'doc-uuid-12345',
-      },
-      {
-        displayName: 'Processing Status',
-        name: 'processingStatus',
-        type: 'options',
-        options: [
-          {
-            name: 'Ready for Processing',
-            value: 'ready',
-            description: 'Document is ready for the next processing stage',
-          },
-          {
-            name: 'Currently Processing',
-            value: 'processing',
-            description: 'Document is currently being processed',
-          },
-          {
-            name: 'Processing Complete',
-            value: 'completed',
-            description: 'Processing stage completed successfully',
-          },
-          {
-            name: 'Processing Failed',
-            value: 'failed',
-            description: 'Processing encountered an error',
-          },
-          {
-            name: 'Final Complete',
-            value: 'final_complete',
-            description: 'All processing stages completed',
-          },
-        ],
-        default: 'completed',
-        required: true,
-        displayOptions: {
-          show: {
-            operation: ['updateStatus'],
-          },
-        },
-        description: 'New processing status for the document',
-      },
-      {
-        displayName: 'Additional Metadata',
-        name: 'additionalMetadata',
-        type: 'json',
-        default: '{}',
-        displayOptions: {
-          show: {
-            operation: ['updateStatus'],
-          },
-        },
-        description: 'Additional metadata to update (optional)',
-        placeholder: '{"processing_time": 1.5, "summary_length": 150}',
-      },
-      // Batch Hierarchy operation parameters
-      {
-        displayName: 'Document IDs',
-        name: 'documentIds',
-        type: 'json',
-        default: '[]',
-        required: true,
-        displayOptions: {
-          show: {
-            operation: ['batchHierarchy'],
-          },
-        },
-        description: 'Array of document IDs to get hierarchy for',
-        placeholder: '["doc-id-1", "doc-id-2", "doc-id-3"]',
-      },
-      {
-        displayName: 'Include Parents',
-        name: 'batchIncludeParents',
-        type: 'boolean',
-        default: true,
-        displayOptions: {
-          show: {
-            operation: ['batchHierarchy'],
-          },
-        },
-        description: 'Include parent documents in results',
-      },
-      {
-        displayName: 'Include Children',
-        name: 'batchIncludeChildren',
-        type: 'boolean',
-        default: true,
-        displayOptions: {
-          show: {
-            operation: ['batchHierarchy'],
-          },
-        },
-        description: 'Include child documents in results',
       },
       // Get Final Summary operation parameters
       {
@@ -522,21 +418,29 @@ export class HaystackSearch implements INodeType {
         let body: any = {};
 
         switch (operation) {
-          case 'ingest':
-            endpoint = '/ingest';
-            const documentsParam = this.getNodeParameter('documents', i);
-            try {
-              if (typeof documentsParam === 'string') {
-                body = JSON.parse(documentsParam);
-              } else {
-                body = documentsParam;
-              }
-              if (!Array.isArray(body)) {
-                body = [body];
-              }
-            } catch (error) {
-              throw new NodeOperationError(this.getNode(), 'Invalid JSON in documents parameter');
-            }
+          case 'importFromNode':
+            endpoint = '/import_from_node';
+            const fieldMapping = this.getNodeParameter('fieldMapping', i) as any;
+            const generateEmbeddings = this.getNodeParameter('generateEmbeddings', i) as boolean;
+            
+            const inputData = items[i].json;
+            const mappedDocument = {
+              content: inputData[fieldMapping.contentField || 'content'] || '',
+              summary: inputData[fieldMapping.summaryField || 'summary'] || '',
+              document_id: String(inputData[fieldMapping.idField || 'id'] || ''),
+              parent_id: inputData[fieldMapping.parentIdField || 'parent_id'] ? String(inputData[fieldMapping.parentIdField || 'parent_id']) : null,
+              children_ids: inputData[fieldMapping.childIdsField || 'child_ids'] || [],
+              hierarchy_level: inputData[fieldMapping.hierarchyLevelField || 'hierarchy_level'] || 0,
+              workflow_id: inputData[fieldMapping.batchIdField || 'batch_id'] || '',
+              metadata: {
+                ...inputData,
+                source_system: 'hierarchical_summarization',
+                imported_at: new Date().toISOString(),
+              },
+              generate_embeddings: generateEmbeddings,
+            };
+            
+            body = mappedDocument;
             break;
 
           case 'search':
@@ -586,172 +490,11 @@ export class HaystackSearch implements INodeType {
             body = null;
             break;
 
-          case 'getByStage':
-            // VALIDATION: Stage type enum check
-            const stageType = this.getNodeParameter('stageType', i) as string;
-            const validStageTypes = ['ready_chunk', 'ready_summarize', 'ready_aggregate', 'completed'];
-            if (!validStageTypes.includes(stageType)) {
-              throw new NodeOperationError(
-                this.getNode(),
-                `Invalid stage type '${stageType}'. Must be one of: ${validStageTypes.join(', ')}`
-              );
-            }
-            
-            // VALIDATION: Hierarchy level bounds and type check
-            const hierarchyLevel = this.getNodeParameter('hierarchyLevel', i);
-            if (typeof hierarchyLevel !== 'number' || !Number.isInteger(hierarchyLevel)) {
-              throw new NodeOperationError(
-                this.getNode(),
-                `Hierarchy level must be an integer, received: ${typeof hierarchyLevel}`
-              );
-            }
-            if (hierarchyLevel < 0 || hierarchyLevel > 10) {
-              throw new NodeOperationError(
-                this.getNode(),
-                `Invalid hierarchy level: ${hierarchyLevel}. Must be between 0 and 10.`
-              );
-            }
-            
-            endpoint = '/get_by_stage';
-            body = {
-              stage_type: stageType,
-              hierarchy_level: hierarchyLevel,
-            };
-            break;
-
-          case 'updateStatus':
-            // VALIDATION: Document ID format check
-            const documentId = this.getNodeParameter('statusDocumentId', i) as string;
-            if (!documentId || documentId.trim().length === 0) {
-              throw new NodeOperationError(this.getNode(), 'Document ID cannot be empty');
-            }
-            if (documentId.length < 8 || documentId.length > 100) {
-              throw new NodeOperationError(
-                this.getNode(),
-                `Invalid document ID length: ${documentId.length}. Must be between 8-100 characters.`
-              );
-            }
-            
-            // VALIDATION: Processing status enum check
-            const processingStatus = this.getNodeParameter('processingStatus', i) as string;
-            const validStatuses = ['ready', 'processing', 'completed', 'failed', 'final_complete'];
-            if (!validStatuses.includes(processingStatus)) {
-              throw new NodeOperationError(
-                this.getNode(),
-                `Invalid processing status '${processingStatus}'. Must be one of: ${validStatuses.join(', ')}`
-              );
-            }
-            
-            endpoint = '/update_status';
-            body = {
-              document_id: documentId.trim(),
-              processing_status: processingStatus,
-            };
-            
-            // VALIDATION: Additional metadata JSON parsing
-            const additionalMetadata = this.getNodeParameter('additionalMetadata', i);
-            if (additionalMetadata) {
-              try {
-                let parsedMetadata;
-                if (typeof additionalMetadata === 'string' && additionalMetadata !== '{}') {
-                  parsedMetadata = JSON.parse(additionalMetadata);
-                } else if (typeof additionalMetadata === 'object') {
-                  parsedMetadata = additionalMetadata;
-                }
-                
-                // SECURITY: Validate metadata structure
-                if (parsedMetadata && typeof parsedMetadata === 'object') {
-                  const metadataSize = JSON.stringify(parsedMetadata).length;
-                  if (metadataSize > 10000) {
-                    throw new NodeOperationError(
-                      this.getNode(),
-                      `Additional metadata too large: ${metadataSize} bytes. Maximum 10KB allowed.`
-                    );
-                  }
-                  body.additional_metadata = parsedMetadata;
-                }
-              } catch (jsonError) {
-                throw new NodeOperationError(
-                  this.getNode(),
-                  `Invalid JSON in additional metadata: ${jsonError instanceof Error ? jsonError.message : 'Unknown error'}`
-                );
-              }
-            }
-            break;
-
-          case 'batchHierarchy':
-            // VALIDATION: Document IDs array parsing and validation
-            const documentIdsParam = this.getNodeParameter('documentIds', i);
-            let documentIds: string[];
-            
-            try {
-              if (typeof documentIdsParam === 'string') {
-                if (documentIdsParam.trim() === '' || documentIdsParam.trim() === '[]') {
-                  throw new NodeOperationError(this.getNode(), 'Document IDs array cannot be empty');
-                }
-                documentIds = JSON.parse(documentIdsParam);
-              } else if (Array.isArray(documentIdsParam)) {
-                documentIds = documentIdsParam as string[];
-              } else {
-                throw new NodeOperationError(
-                  this.getNode(),
-                  `Document IDs must be an array, received: ${typeof documentIdsParam}`
-                );
-              }
-              
-              // VALIDATION: Array content and size checks
-              if (!Array.isArray(documentIds) || documentIds.length === 0) {
-                throw new NodeOperationError(this.getNode(), 'Document IDs must be a non-empty array');
-              }
-              
-              if (documentIds.length > 50) {
-                throw new NodeOperationError(
-                  this.getNode(),
-                  `Too many document IDs: ${documentIds.length}. Maximum 50 allowed per batch.`
-                );
-              }
-              
-              // VALIDATION: Individual document ID format
-              for (let idx = 0; idx < documentIds.length; idx++) {
-                const docId = documentIds[idx];
-                if (typeof docId !== 'string' || docId.trim().length === 0) {
-                  throw new NodeOperationError(
-                    this.getNode(),
-                    `Invalid document ID at index ${idx}: must be non-empty string`
-                  );
-                }
-                if (docId.length < 8 || docId.length > 100) {
-                  throw new NodeOperationError(
-                    this.getNode(),
-                    `Invalid document ID at index ${idx}: length must be between 8-100 characters`
-                  );
-                }
-                // Sanitize document ID
-                documentIds[idx] = docId.trim();
-              }
-              
-            } catch (parseError) {
-              if (parseError instanceof NodeOperationError) {
-                throw parseError;
-              }
-              throw new NodeOperationError(
-                this.getNode(),
-                `Failed to parse document IDs: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`
-              );
-            }
-            
-            endpoint = '/batch_hierarchy';
-            body = {
-              document_ids: documentIds,
-              include_parents: this.getNodeParameter('batchIncludeParents', i) as boolean,
-              include_children: this.getNodeParameter('batchIncludeChildren', i) as boolean,
-            };
-            break;
 
           case 'getFinalSummary':
             const workflowId = this.getNodeParameter('workflowId', i) as string;
-            if (!workflowId || workflowId.trim().length === 0) {
-              throw new NodeOperationError(this.getNode(), 'Workflow ID cannot be empty');
+            if (!workflowId?.trim()) {
+              throw new NodeOperationError(this.getNode(), 'Workflow ID is required');
             }
             endpoint = `/get_final_summary/${encodeURIComponent(workflowId.trim())}`;
             method = 'GET';
@@ -760,8 +503,8 @@ export class HaystackSearch implements INodeType {
 
           case 'getCompleteTree':
             const treeWorkflowId = this.getNodeParameter('treeWorkflowId', i) as string;
-            if (!treeWorkflowId || treeWorkflowId.trim().length === 0) {
-              throw new NodeOperationError(this.getNode(), 'Workflow ID cannot be empty');
+            if (!treeWorkflowId?.trim()) {
+              throw new NodeOperationError(this.getNode(), 'Workflow ID is required');
             }
             const treeMaxDepth = this.getNodeParameter('treeMaxDepth', i) as number;
             const treeIncludeContent = this.getNodeParameter('treeIncludeContent', i) as boolean;
@@ -770,7 +513,6 @@ export class HaystackSearch implements INodeType {
             method = 'GET';
             body = null;
             
-            // Build query parameters
             const treeParams = new URLSearchParams();
             treeParams.append('max_depth', treeMaxDepth.toString());
             treeParams.append('include_content', treeIncludeContent.toString());
@@ -779,8 +521,8 @@ export class HaystackSearch implements INodeType {
 
           case 'getDocumentWithContext':
             const contextDocumentId = this.getNodeParameter('contextDocumentId', i) as string;
-            if (!contextDocumentId || contextDocumentId.trim().length === 0) {
-              throw new NodeOperationError(this.getNode(), 'Document ID cannot be empty');
+            if (!contextDocumentId?.trim()) {
+              throw new NodeOperationError(this.getNode(), 'Document ID is required');
             }
             const includeFullContent = this.getNodeParameter('includeFullContent', i) as boolean;
             const includeSiblings = this.getNodeParameter('includeSiblings', i) as boolean;
@@ -789,7 +531,6 @@ export class HaystackSearch implements INodeType {
             method = 'GET';
             body = null;
             
-            // Build query parameters
             const contextParams = new URLSearchParams();
             contextParams.append('include_full_content', includeFullContent.toString());
             contextParams.append('include_siblings', includeSiblings.toString());
@@ -800,7 +541,6 @@ export class HaystackSearch implements INodeType {
             throw new NodeOperationError(this.getNode(), `Unknown operation: ${operation}`);
         }
 
-        // Make HTTP request using n8n's helpers
         const url = `${haystackUrl}${endpoint}`;
         
         try {
@@ -830,9 +570,7 @@ export class HaystackSearch implements INodeType {
           throw error;
         }
 
-        // Process response based on operation
         if (operation === 'search' && response.results) {
-          // Return each search result as a separate item
           for (const result of response.results) {
             returnData.push({
               json: {
@@ -846,7 +584,6 @@ export class HaystackSearch implements INodeType {
             });
           }
         } else {
-          // Return the entire response as a single item
           returnData.push({
             json: response as IDataObject,
           });
