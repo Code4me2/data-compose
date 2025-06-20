@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Hierarchy Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .batch-id-list {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .batch-id {
+            font-family: monospace;
+            background: #e0e0e0;
+            padding: 5px 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            display: inline-block;
+        }
+        .batch-id:hover {
+            background: #d0d0d0;
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hierarchy Visualization Test</h1>
+    
+    <div class="test-section">
+        <h2>Known Batch IDs from Database</h2>
+        <p>Click on any batch ID to test the visualization:</p>
+        <div class="batch-id-list">
+            <div class="batch-id" onclick="testBatchId('2ff41b9e-6c86-4a1f-9833-8bc260893539')">
+                2ff41b9e-6c86-4a1f-9833-8bc260893539
+            </div>
+            <div class="batch-id" onclick="testBatchId('a348db92-3dd2-4bfe-b190-644bd29c53a3')">
+                a348db92-3dd2-4bfe-b190-644bd29c53a3
+            </div>
+            <div class="batch-id" onclick="testBatchId('db5e431f-5cb9-4284-9281-c8de0c7a4c2b')">
+                db5e431f-5cb9-4284-9281-c8de0c7a4c2b
+            </div>
+            <div class="batch-id" onclick="testBatchId('79cac1ff-411b-45b2-bb04-ead61bb6d8a2')">
+                79cac1ff-411b-45b2-bb04-ead61bb6d8a2
+            </div>
+            <div class="batch-id" onclick="testBatchId('d01f6a03-7c7d-4805-86b1-70e31f4ea37b')">
+                d01f6a03-7c7d-4805-86b1-70e31f4ea37b
+            </div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Direct Webhook Test</h2>
+        <button onclick="testWebhook()">Test Webhook Connection</button>
+        <div id="webhook-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Visualization Preview</h2>
+        <p>Open the main application and navigate to Recursive Summary tab, then enter one of the batch IDs above.</p>
+        <iframe src="index.html" id="app-frame"></iframe>
+    </div>
+
+    <script>
+        function testBatchId(batchId) {
+            // Copy to clipboard
+            navigator.clipboard.writeText(batchId).then(() => {
+                alert(`Batch ID ${batchId} copied to clipboard!\n\nNow:\n1. Go to the Recursive Summary tab in the iframe below\n2. Paste this ID\n3. Click "Show Visualization"`);
+            });
+        }
+
+        async function testWebhook() {
+            const resultDiv = document.getElementById('webhook-result');
+            resultDiv.innerHTML = '<div class="status">Testing webhook...</div>';
+            
+            try {
+                const response = await fetch('/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        action: 'get_summaries',
+                        batchId: '2ff41b9e-6c86-4a1f-9833-8bc260893539'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.hierarchy && data.hierarchy.levels && data.hierarchy.documents) {
+                    resultDiv.innerHTML = `
+                        <div class="status success">
+                            ✅ Webhook is working correctly!<br>
+                            Received hierarchy with ${data.hierarchy.levels.length} levels
+                        </div>
+                        <pre style="background: white; padding: 10px; overflow: auto; max-height: 300px;">
+${JSON.stringify(data, null, 2)}
+                        </pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="status error">
+                            ⚠️ Webhook returned unexpected data structure
+                        </div>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ Webhook test failed: ${error.message}
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
