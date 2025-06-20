@@ -1,0 +1,1 @@
+This is a shorter document to test edge cases. It only has a couple of sentences. The system should handle it gracefully.

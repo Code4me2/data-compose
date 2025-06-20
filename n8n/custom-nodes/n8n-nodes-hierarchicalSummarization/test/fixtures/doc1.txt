@@ -1,0 +1,5 @@
+The quick brown fox jumps over the lazy dog. This is a test document for hierarchical summarization. It contains multiple sentences that will be processed by the summarization algorithm.
+
+In the second paragraph, we add more content to ensure the document has enough substance for testing. The algorithm should be able to handle documents of various sizes and structures. This helps verify that the chunking mechanism works correctly.
+
+Finally, we include a third paragraph to make the document more substantial. Testing with realistic content helps ensure the system performs well in real-world scenarios. The summarization process should produce meaningful results from this input.
