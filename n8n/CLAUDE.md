@@ -2,10 +2,11 @@ This project is a targeted addition to an existing architecture, being orchestra
 
 ## Current Status
 
-- **Custom Node**: Built and functional with 10 operations
-- **Service**: Running `haystack_service_simple.py` with 10 endpoints
+- **Custom Node**: Built and functional with 8 operations defined (7 working, 1 non-functional)
+- **Service**: Running `haystack_service.py` with 7 implemented endpoints
 - **Documentation**: Updated in `HAYSTACK_SETUP.md` and `haystack_readme.md`
 - **Archived Files**: Old planning documents moved to `archived-docs/`
+- **Known Issue**: The "Batch Hierarchy" operation in the n8n node has no corresponding endpoint in the service
 
 The recommended steps for working with the integration are:
 
@@ -81,14 +82,16 @@ docker-compose restart n8n
 
 * Navigate to: [http://localhost:8080/n8n/](http://localhost:8080/n8n/)
 * In a new workflow, search for "Haystack Search" in the node palette
-* The node provides 10 operations for document management and search
+* The node provides 8 operations for document management and search (7 functional, 1 non-functional)
 ---
 
 ## Summary
 
-The Haystack integration is fully functional with:
-- 10 service endpoints for document processing
-- 10 matching n8n node operations
+The Haystack integration is functional with:
+- 7 service endpoints for document processing
+- 8 n8n node operations (7 matching service endpoints, 1 without implementation)
 - Complete documentation in HAYSTACK_SETUP.md and haystack_readme.md
 - All TypeScript compilation issues resolved
 - Proper Docker mounting and service configuration
+
+**Note**: The "Batch Hierarchy" operation will fail as it has no corresponding service endpoint.

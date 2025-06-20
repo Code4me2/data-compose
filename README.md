@@ -76,7 +76,7 @@ When starting up with this project, there are a few common issues, especially gi
     -H "Content-Type: application/json" \
     -d '{"test": "data", "timestamp": "2025-06-09"}' \
     -v \
-    https://your-n8n-instance.com/webhook/your-webhook-id
+    http://localhost:8080/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177
   ```
   if the webhook test is listening, it should return a response from the default chat setup out of workflow_json
 3. **No session ID**
@@ -103,9 +103,9 @@ Data Compose combines multiple technologies to create a powerful document proces
 ### 📄 Document Processing (Haystack Integration)
 - 4-level document hierarchy with parent-child relationships
 - Hybrid search (BM25 + 384-dimensional vector embeddings)
-- Production-ready with atomic updates and race condition prevention
-- 7 operations for complete document lifecycle management
-- Memory-safe batch processing (50 docs/batch, 50MB limit)
+- FastAPI-based service with development server (not production-ready)
+- 7 REST API endpoints for document management and search
+- Direct Elasticsearch integration without full Haystack framework
 
 ### 🔄 Workflow Automation
 - Visual workflow creation with n8n
@@ -168,10 +168,13 @@ data_compose/
 │   └── web_UI_basic        # Basic AI chat workflow
 └── n8n/                    # n8n extensions and configuration
     ├── custom-nodes/       # Custom node implementations
-    │   ├── n8n-nodes-deepseek/    # DeepSeek AI integration
-    │   └── n8n-nodes-haystack/    # Document search integration
+    │   ├── n8n-nodes-deepseek/     # DeepSeek AI integration
+    │   ├── n8n-nodes-haystack/     # Document search integration (7 operations)
+    │   ├── n8n-nodes-hierarchicalSummarization/  # PostgreSQL document processing
+    │   └── n8n-nodes-bitnet/       # BitNet LLM inference
     ├── docker-compose.haystack.yml # Haystack services config
     ├── haystack-service/          # Haystack API implementation
+    │   └── haystack_service.py    # Main service (7 endpoints)
     └── local-files/              # Persistent storage
 ```
 
@@ -365,6 +368,87 @@ docker-compose restart n8n
 6. **UI Properties**: Provide sensible defaults and clear descriptions
 7. **Advanced Options**: Hide complex settings under "Additional Fields"
 
+### AI Agent Integration Patterns
+
+The project demonstrates advanced patterns for integrating custom AI nodes with n8n's AI Agent system, as shown in the BitNet and Hierarchical Summarization implementations.
+
+#### Architecture Overview
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  Chat Trigger   │────▶│    AI Agent     │────▶│    Response      │
+│  (User Input)   │     │ (Conversational) │     │   (To User)      │
+└─────────────────┘     └────────┬────────┘     └──────────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    │                         │
+          ┌─────────▼──────────┐    ┌────────▼────────┐
+          │  BitNet Chat Model  │    │     Memory      │
+          │ (Language Model)    │    │  (Chat Context) │
+          └────────────────────┘    └─────────────────┘
+```
+
+#### Creating AI Agent Compatible Nodes
+
+To create custom nodes that work with n8n's AI Agent system:
+
+1. **Implement the Supply Data Interface**:
+   ```typescript
+   async supplyData(this: ISupplyDataFunctions): Promise<any> {
+     return {
+       invoke: async (params: { messages, options }) => {
+         // Process messages and return response
+         return { text: response, content: response };
+       }
+     };
+   }
+   ```
+
+2. **Configure Output Type**:
+   ```typescript
+   outputs: [NodeConnectionType.AiLanguageModel],
+   outputNames: ['Model']
+   ```
+
+3. **Dual Mode Support**:
+   - **Standalone Mode**: Traditional execute() method for direct use
+   - **Sub-node Mode**: supplyData() method for AI Agent integration
+
+#### Integration Examples
+
+**1. Chat with BitNet Model**:
+```
+[Chat Trigger] → [Conversational Agent] → [Response]
+                         ↓
+                   [BitNet Chat Model]
+```
+
+**2. Document Processing Pipeline**:
+```
+[Document] → [Hierarchical Summarization] → [Summary]
+                        ↓
+                  [BitNet Chat Model]
+```
+
+**3. Advanced Workflow with Tools**:
+```
+[Chat Trigger] → [Tools Agent] → [Response]
+                      ↓
+                [BitNet Model]
+                      ↓
+                [Web Search Tool]
+                      ↓
+                [Calculator Tool]
+```
+
+#### Key Considerations
+
+1. **Message Format**: AI Agents use standardized message format with roles (system, user, assistant)
+2. **Options Handling**: Support temperature, max tokens, and other generation parameters
+3. **Error Propagation**: Gracefully handle and report errors to the AI Agent
+4. **Performance**: Efficient processing for real-time chat applications
+5. **Context Management**: Work with memory nodes for conversation continuity
+
 ### Frontend Development
 
 The frontend uses a modular architecture for easy extension:
@@ -396,8 +480,8 @@ N8N_ENCRYPTION_KEY=your_encryption_key
 Update `website/js/config.js` with your webhook ID:
 ```javascript
 const CONFIG = {
-  WEBHOOK_ID: "your-webhook-id",
-  WEBHOOK_URL: `${window.location.protocol}//${window.location.host}/webhook/your-webhook-id`
+  WEBHOOK_ID: "c188c31c-1c45-4118-9ece-5b6057ab5177",
+  WEBHOOK_URL: `${window.location.protocol}//${window.location.host}/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177`
 };
 ```
 
@@ -405,14 +489,14 @@ const CONFIG = {
 
 ### Haystack Integration (Optional)
 
-The Haystack integration provides enterprise-grade document processing with hierarchical analysis, recursive summarization, and advanced search capabilities. It's specifically optimized for legal document processing with a 4-level hierarchy system.
+The Haystack integration provides document processing with hierarchical analysis and search capabilities. It's designed for legal document processing with a 4-level hierarchy system.
 
 #### Key Features:
 - **Hierarchical Document Processing**: 4-level document hierarchy with parent-child relationships
 - **Advanced Search**: Hybrid search combining BM25 and 384-dimensional vector embeddings
-- **Recursive Summarization**: Automated document chunking, summarization, and aggregation
-- **Production-Ready**: Atomic status updates, race condition prevention, memory-safe batch operations
-- **7 Operations**: Ingest, Search, Get Hierarchy, Health Check, Get By Stage, Update Status, Batch Hierarchy
+- **Direct Elasticsearch Integration**: Uses Elasticsearch directly without full Haystack framework
+- **Development Server**: FastAPI service with auto-reload (not production-ready)
+- **7 API Endpoints**: Import, Search, Hierarchy, Health, Final Summary, Complete Tree, Document Context
 
 #### Starting Haystack Services:
 
@@ -427,13 +511,15 @@ cd n8n && ./start_haystack_services.sh
 #### Using in n8n Workflows:
 
 1. **Add Haystack Search node** to your workflow
-2. **Configure operation** (e.g., Ingest Documents, Search, Get By Stage)
+2. **Configure operation** (one of 7 available operations)
 3. **Connect to other nodes** for document processing pipelines
 
-Example workflow pattern for recursive summarization:
+Example workflow pattern:
 ```
-Upload Document → Ingest → Chunk → Get By Stage → AI Summarize → Update Status → Aggregate
+PostgreSQL Query → Haystack Import → Search/Navigate Documents
 ```
+
+**Note**: The Haystack node has 8 operations defined but the service only implements 7. The "Batch Hierarchy" operation will not work.
 
 #### API Endpoints:
 

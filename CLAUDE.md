@@ -70,10 +70,10 @@ The application uses Docker Compose for container orchestration:
 Sensitive configuration is stored in the `.env` file:
 
 ```
-DB_USER=vel
+DB_USER=your_db_user
 DB_PASSWORD=your_secure_password_here
-DB_NAME=mydb
-N8N_ENCRYPTION_KEY=a_random_secure_encryption_key_here
+DB_NAME=your_db_name
+N8N_ENCRYPTION_KEY=your_secure_encryption_key_here
 ```
 
 ### NGINX Configuration
@@ -498,30 +498,76 @@ app.registerSection('newFeature', {
 
 The transformation successfully converted a collection of scattered, duplicated files into a cohesive, maintainable, and extensible application framework while preserving every aspect of the original functionality. The new architecture embodies the principle that the best solutions are both powerful and simple.
 
-# Outstanding Issue: Chat Context Management
+# Hierarchical Summarization Navigation
 
-## Problem
-The DeepSeek node in n8n currently sends isolated messages without conversation context. Each message to the AI has no memory of previous exchanges.
+## Overview
+The Hierarchical Summarization feature provides an advanced visualization and navigation system for exploring document hierarchies with multiple levels of summarization.
 
-## Solution Required
-**DeepSeek Node Modification** - Change the node to use Ollama's `/api/chat` endpoint instead of `/api/generate`:
+## Navigation Features
 
-1. **Update endpoint URL** (line 86): `http://host.docker.internal:11434/api/chat`
-2. **Change request format** (lines 121-127): 
-   ```javascript
-   {
-     model: 'deepseek-r1:1.5b',
-     messages: [{ role: 'user', content: prompt }],
-     // ... other params
-   }
-   ```
-3. **Update response parsing** (line 143): `data.message?.content || data.response`
+### Visual Hierarchy
+- **Level-based Color Coding**: Each hierarchy level has distinct colors:
+  - Level 0 (Source Documents): Light blue (#e3f2fd)
+  - Level 1 (Initial Summaries): Light green (#e8f5e9)
+  - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
+  - Level 3 (Final Summary): Light purple (#f3e5f5)
+- **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
+- **Active Path Highlighting**: Shows the relationship path between nodes
 
-**Note**: TypeScript compilation issues have been fixed. The node now properly imports `NodeConnectionType` and uses it for inputs/outputs.
+### Navigation Methods
 
-**Alternative**: Modify frontend to maintain conversation history and send full context with each request (higher bandwidth, more complex).
+1. **Arrow Navigation**
+   - Left/Right arrows: Navigate between hierarchy levels (parent/child relationships)
+   - Up/Down arrows: Navigate between siblings at the same level
+   - Hover tooltips show preview of target nodes
 
-The `/api/chat` approach is the lower bandwidth, architecturally correct solution as Ollama handles conversation memory server-side.
+2. **Keyboard Shortcuts**
+   - `←` Navigate to parent level (toward final summary)
+   - `→` Navigate to child level (toward source documents)
+   - `↑` Previous sibling at same level
+   - `↓` Next sibling at same level
+   - `Home` Jump directly to final summary
+   - `End` Jump to first source document
+   - `Ctrl+/` Open search dialog
+
+3. **Breadcrumb Navigation**
+   - Shows current path from final summary to current node
+   - Click any breadcrumb to jump directly to that node
+   - Color-coded breadcrumbs match level colors
+
+4. **Quick Jump Dropdown**
+   - Access via compass icon in top-right
+   - Nodes organized by hierarchy levels
+   - Shows preview of each node's content
+   - Searchable dropdown for quick access
+
+5. **Search Functionality**
+   - Full-text search across all nodes
+   - Highlighted matches in visualization
+   - Context preview showing surrounding text
+   - Click search results to navigate directly
+
+### Additional Features
+- **Minimap**: Interactive overview showing entire hierarchy with current viewport
+- **Zoom/Pan**: Mouse wheel zoom, click and drag to pan
+- **URL Bookmarking**: Direct links to specific nodes via URL hash
+- **Progressive Loading**: Handles large hierarchies efficiently
+- **Responsive Design**: Adapts to different screen sizes
+
+## Technical Implementation Notes
+
+### Navigation Bug Fix
+Fixed critical navigation logic where left/right arrow directions were reversed. The navigation now correctly:
+- Left arrow navigates to parent nodes (higher level, toward final summary)
+- Right arrow navigates to child nodes (lower level, toward source documents)
+
+### Performance Optimizations
+- Debounced zoom/pan operations for smoother interaction
+- Smart viewport culling for large hierarchies
+- Efficient path highlighting using D3.js selections
+
+### CSS Architecture
+All hierarchy levels use CSS custom properties for easy theming and consistency across the visualization.
 
 # DeepSeek Custom Node Details
 
@@ -550,21 +596,24 @@ npm run lint   # Code quality
 ```
 
 ### Known Limitations
-1. Currently uses `/api/generate` endpoint (stateless)
-2. No conversation context between messages
-3. TypeScript type definitions need updating for latest n8n
+1. Uses `/api/generate` endpoint (stateless, no conversation memory)
+2. TypeScript type definitions need updating for latest n8n
 
 ### Future Improvements
-1. Switch to `/api/chat` endpoint for conversation memory
-2. Add streaming response support
-3. Implement token usage tracking
-4. Add model selection dropdown
+1. Add streaming response support
+2. Implement token usage tracking
+3. Add model selection dropdown
+4. Consider frontend-based conversation history management
 
 # Haystack/Elasticsearch Integration
 
 ## Overview
 
 The project includes a comprehensive document processing system using Elasticsearch and a Haystack-inspired implementation for AI-powered document analysis, specifically designed for legal documents.
+
+**Pipeline Design**: Haystack works WITH HierarchicalSummarization, not instead of it:
+1. HierarchicalSummarization processes documents → PostgreSQL
+2. Haystack imports from PostgreSQL → Elasticsearch for search
 
 ### Architecture
 
@@ -581,16 +630,15 @@ The project includes a comprehensive document processing system using Elasticsea
 
 3. **Custom n8n Node** (`n8n-nodes-haystack`)
    - Full integration with n8n workflows
-   - 10 Operations: Ingest, Search, Hierarchy, Health Check, Get By Stage, Update Status, Batch Hierarchy, Get Final Summary, Get Complete Tree, Get Document with Context
+   - 8 Operations: Import from Previous Node, Search, Get Hierarchy, Health Check, Batch Hierarchy, Get Final Summary, Get Complete Tree, Get Document with Context
 
 ### Important Implementation Note
 
-**Current Active Service**: `haystack_service_simple.py`
+**Current Active Service**: `haystack_service.py` (NOT haystack_service_simple.py which doesn't exist)
 - Uses direct Elasticsearch client (not full Haystack library)
-- Provides all documented features without Haystack dependencies
-- More reliable and maintainable than full Haystack integration
-- **10 endpoints** including tree navigation and workflow management
-- **10 operations** in the n8n node matching all service endpoints
+- Running with FastAPI development server (--reload flag, not production-ready)
+- **7 endpoints** implemented (missing batch_hierarchy)
+- **8 operations** in the n8n node (but "Batch Hierarchy" will fail as endpoint doesn't exist)
 
 ### Key Features
 
@@ -604,11 +652,15 @@ The project includes a comprehensive document processing system using Elasticsea
    - **Vector Search**: Using BAAI/bge-small-en-v1.5 embeddings
    - **BM25 Search**: Traditional keyword search with legal analyzer
 
-3. **API Endpoints**
-   - `POST /ingest` - Batch document ingestion
-   - `POST /search` - Multi-modal search
-   - `POST /hierarchy` - Document relationship queries
-   - `GET /health` - Service status
+3. **API Endpoints** (7 implemented)
+   - `POST /import_from_node` - Import documents from n8n node
+   - `POST /search` - Multi-modal search (BM25/Vector/Hybrid)
+   - `POST /hierarchy` - Get document relationships
+   - `GET /health` - Service health status
+   - `GET /get_final_summary/{workflow_id}` - Get workflow's final summary
+   - `GET /get_complete_tree/{workflow_id}` - Get full hierarchical tree
+   - `GET /get_document_with_context/{document_id}` - Get document with navigation context
+   - ~~`POST /batch_hierarchy`~~ - NOT IMPLEMENTED (defined in node but missing from service)
 
 ### Quick Test
 
@@ -616,10 +668,8 @@ The project includes a comprehensive document processing system using Elasticsea
 # Check service health
 curl http://localhost:8000/health | jq
 
-# Ingest a test document
-curl -X POST http://localhost:8000/ingest \
-  -H "Content-Type: application/json" \
-  -d '[{"content": "Test legal document", "metadata": {"source": "test.pdf"}, "document_type": "source_document", "hierarchy_level": 0}]'
+# Import a test document (note: /ingest endpoint doesn't exist, use n8n workflow instead)
+# Documents should be imported via the n8n Haystack node's "Import from Previous Node" operation
 
 # Search documents
 curl -X POST http://localhost:8000/search \
