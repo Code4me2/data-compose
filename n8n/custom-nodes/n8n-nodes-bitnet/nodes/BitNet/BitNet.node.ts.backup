@@ -6,7 +6,6 @@ import {
   IDataObject,
   NodeOperationError,
   NodeConnectionType,
-  ISupplyDataFunctions,
 } from 'n8n-workflow';
 
 import { RecursiveSummaryManager, SummaryLevel } from './RecursiveSummary';
@@ -27,7 +26,7 @@ export class BitNet implements INodeType {
     displayName: 'BitNet LLM',
     name: 'bitnet',
     icon: 'file:bitnet.svg',
-    group: ['ai', 'languageModel'],
+    group: ['ai'],
     version: 1,
     subtitle: '={{$parameter.operation + ": " + $parameter.model}}',
     description: 'Interact with BitNet 1-bit LLMs for efficient inference',
@@ -35,13 +34,7 @@ export class BitNet implements INodeType {
       name: 'BitNet',
     },
     inputs: [{ type: NodeConnectionType.Main }],
-    outputs: [
-      { type: NodeConnectionType.Main },
-      { 
-        type: NodeConnectionType.AiLanguageModel,
-        displayName: 'Model'
-      }
-    ],
+    outputs: [{ type: NodeConnectionType.Main }],
     properties: [
       {
         displayName: 'Operation',
@@ -118,7 +111,7 @@ export class BitNet implements INodeType {
         displayName: 'BitNet Server URL',
         name: 'serverUrl',
         type: 'string',
-        default: process.env.BITNET_EXTERNAL_SERVER_URL || 'http://localhost:8081',
+        default: process.env.BITNET_EXTERNAL_SERVER_URL || 'http://localhost:8080',
         description: 'URL of the BitNet inference server',
         displayOptions: {
           show: {
@@ -382,44 +375,6 @@ export class BitNet implements INodeType {
       },
       // Chat Parameters
       {
-        displayName: 'Message Source',
-        name: 'messageSource',
-        type: 'options',
-        displayOptions: {
-          show: {
-            operation: ['chat'],
-          },
-        },
-        options: [
-          {
-            name: 'Input Data',
-            value: 'inputData',
-            description: 'Use messages from incoming data',
-          },
-          {
-            name: 'Parameters',
-            value: 'parameters',
-            description: 'Use messages defined in parameters',
-          },
-        ],
-        default: 'parameters',
-        description: 'Where to get the chat messages from',
-      },
-      {
-        displayName: 'Message Field',
-        name: 'messageField',
-        type: 'string',
-        default: 'message',
-        displayOptions: {
-          show: {
-            operation: ['chat'],
-            messageSource: ['inputData'],
-          },
-        },
-        description: 'Name of the field containing the message in the input data',
-        placeholder: 'message',
-      },
-      {
         displayName: 'Messages',
         name: 'messages',
         type: 'json',
@@ -428,7 +383,6 @@ export class BitNet implements INodeType {
         displayOptions: {
           show: {
             operation: ['chat'],
-            messageSource: ['parameters'],
           },
         },
         description: 'Chat messages in JSON format, or just type plain text',
@@ -568,19 +522,6 @@ export class BitNet implements INodeType {
             description: 'Whether to include reasoning process in response',
           },
         ],
-      },
-      // AI Language Model Options (for when used as AI provider)
-      {
-        displayName: 'AI Model Output Limit',
-        name: 'aiModelMaxTokens',
-        type: 'number',
-        default: 150,
-        description: 'Maximum tokens when used as AI Language Model provider (e.g., with Hierarchical Summarization)',
-        hint: 'Overrides requests from connected nodes. Set to 50 for short summaries, 150 for medium, 500 for long.',
-        typeOptions: {
-          minValue: 10,
-          maxValue: 2048,
-        },
       },
       // Performance Options
       {
@@ -1183,144 +1124,5 @@ export class BitNet implements INodeType {
     }
 
     return [returnData];
-  }
-
-  // AI Agent integration
-  async supplyData(this: ISupplyDataFunctions): Promise<any> {
-    const serverMode = this.getNodeParameter('serverMode', 0) as string;
-    
-    // Get server URL based on mode
-    let serverUrl: string;
-    if (serverMode === 'managed') {
-      // Ensure server is running
-      if (!serverInstance) {
-        const bitnetPath = this.getNodeParameter('bitnetPath', 0) as string;
-        const serverPort = this.getNodeParameter('serverPort', 0) as number;
-        const perfOptions = this.getNodeParameter('performanceOptions', 0) as IDataObject;
-        
-        serverInstance = new BitNetServerWrapper({
-          bitnetPath,
-          port: serverPort,
-          contextSize: perfOptions.contextSize || 4096,
-          threads: perfOptions.threads || 4,
-          gpuLayers: perfOptions.gpuLayers || 0,
-        });
-
-        try {
-          await serverInstance.start();
-        } catch (error) {
-          throw new NodeOperationError(
-            this.getNode(),
-            `Failed to start BitNet server: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
-      serverUrl = serverInstance.getServerUrl();
-    } else {
-      serverUrl = this.getNodeParameter('serverUrl', 0) as string;
-    }
-
-    // Get model configuration
-    const modelName = this.getNodeParameter('model', 0) as string;
-    const modelPath = modelName === 'custom' 
-      ? this.getNodeParameter('customModel', 0) as string 
-      : modelName;
-
-    // Create a mock LangChain-compatible model object
-    const model = {
-      invoke: async (params: {
-        messages: Array<{role: string, content: string}>,
-        options?: {
-          temperature?: number,
-          maxTokensToSample?: number,
-          [key: string]: any
-        }
-      }) => {
-        const { messages, options = {} } = params;
-        
-        // Get additional options from node parameters
-        const additionalOptions = this.getNodeParameter('additionalOptions', 0) as IDataObject;
-        const perfOptions = this.getNodeParameter('performanceOptions', 0) as IDataObject;
-        const aiModelMaxTokens = this.getNodeParameter('aiModelMaxTokens', 0) as number;
-        
-        // Prepare request body
-        const body: any = {
-          model: modelPath,
-          messages: messages,
-          temperature: options.temperature ?? additionalOptions.temperature ?? 0.7,
-          max_tokens: options.maxTokensToSample ?? aiModelMaxTokens ?? additionalOptions.maxTokens ?? 512,
-          top_p: options.topP ?? additionalOptions.topP ?? 0.9,
-          top_k: options.topK ?? additionalOptions.topK ?? 40,
-          stream: false, // AI Agents don't support streaming yet
-        };
-
-        // Add stop sequences if provided
-        if (additionalOptions.stopSequences) {
-          body.stop = (additionalOptions.stopSequences as string)
-            .split(',')
-            .map(s => s.trim())
-            .filter(s => s.length > 0);
-        }
-
-        // Add performance options
-        if (perfOptions.threads) body.n_threads = perfOptions.threads;
-        if (perfOptions.gpuLayers) body.n_gpu_layers = perfOptions.gpuLayers;
-        if (perfOptions.contextSize) body.n_ctx = perfOptions.contextSize;
-
-        // Make API call
-        const url = `${serverUrl}/v1/chat/completions`;
-        
-        try {
-          const response = await this.helpers.httpRequest({
-            method: 'POST',
-            url,
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body,
-            json: true,
-          });
-
-          // Extract response content
-          const content = response.choices?.[0]?.message?.content || '';
-          
-          // Handle thinking/reasoning if present
-          let finalContent = content;
-          let thinking = '';
-          if (content) {
-            const thinkingMatch = content.match(/<think>(.*?)<\/think>/s);
-            if (thinkingMatch) {
-              thinking = thinkingMatch[1].trim();
-              finalContent = content.replace(/<think>.*?<\/think>/s, '').trim();
-            }
-          }
-
-          // Return in the format expected by AI Agents
-          return {
-            text: finalContent,
-            content: finalContent,
-            // Optional metadata that might be useful
-            usage: response.usage,
-            thinking: thinking || undefined,
-          };
-        } catch (error) {
-          if (error instanceof Error) {
-            throw new NodeOperationError(
-              this.getNode(),
-              `Failed to connect to BitNet server at ${url}: ${error.message}`,
-            );
-          }
-          throw error;
-        }
-      }
-    };
-
-    // Return in LangChain-compatible format
-    // The 'response' property is what LangChain nodes expect
-    return {
-      response: model,
-      // Also keep the invoke method for backward compatibility
-      invoke: model.invoke
-    };
   }
 }

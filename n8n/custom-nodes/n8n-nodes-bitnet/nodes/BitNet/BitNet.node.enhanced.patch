@@ -1,0 +1,239 @@
+--- BitNet.node.ts.original
++++ BitNet.node.ts.enhanced
+@@ -10,6 +10,7 @@ import {
+ } from 'n8n-workflow';
+ 
+ import { RecursiveSummaryManager, SummaryLevel } from './RecursiveSummary';
++import { RecursiveSummaryAdapter, ProcessorHook } from './RecursiveSummaryAdapter';
+ 
+ const BitNetServerWrapper = require('../../bitnet-server-wrapper.js');
+ import * as dotenv from 'dotenv';
+@@ -357,6 +358,81 @@ export class BitNet implements INodeType {
+             ],
+             default: 'hierarchical',
+           },
++          {
++            displayName: 'Enable Intermediate Processing',
++            name: 'enableIntermediateProcessing',
++            type: 'boolean',
++            default: false,
++            description: 'Enable semantic grouping and metadata extraction between summarization levels',
++          },
++          {
++            displayName: 'Intermediate Processing',
++            name: 'intermediateProcessing',
++            type: 'collection',
++            placeholder: 'Add Processing Option',
++            default: {},
++            displayOptions: {
++              show: {
++                enableIntermediateProcessing: [true],
++              },
++            },
++            options: [
++              {
++                displayName: 'Semantic Grouping',
++                name: 'semanticGrouping',
++                type: 'boolean',
++                default: false,
++                description: 'Group similar chunks before summarization',
++              },
++              {
++                displayName: 'Similarity Threshold',
++                name: 'similarityThreshold',
++                type: 'number',
++                default: 0.7,
++                typeOptions: {
++                  minValue: 0.5,
++                  maxValue: 0.95,
++                  numberPrecision: 2,
++                },
++                displayOptions: {
++                  show: {
++                    semanticGrouping: [true],
++                  },
++                },
++                description: 'Minimum similarity for grouping chunks',
++              },
++              {
++                displayName: 'Extract Keywords',
++                name: 'extractKeywords',
++                type: 'boolean',
++                default: false,
++                description: 'Extract keywords at each level',
++              },
++              {
++                displayName: 'Extract Entities',
++                name: 'extractEntities',
++                type: 'boolean',
++                default: false,
++                description: 'Extract named entities at each level',
++              },
++              {
++                displayName: 'Preserve Metadata',
++                name: 'preserveMetadata',
++                type: 'boolean',
++                default: true,
++                description: 'Include processing metadata in output',
++              },
++              {
++                displayName: 'Max Groups',
++                name: 'maxGroups',
++                type: 'number',
++                default: 5,
++                displayOptions: {
++                  show: {
++                    semanticGrouping: [true],
++                  },
++                },
++                description: 'Maximum number of semantic groups per level',
++              },
++            ],
++          },
+         ],
+       },
+       // Text Completion Parameters
+@@ -723,7 +799,20 @@ export class BitNet implements INodeType {
+ 
+     // Handle recursive summary operation
+     if (operation === 'recursive_summary') {
+-      const summaryManager = new RecursiveSummaryManager();
++      // Check if intermediate processing is enabled
++      const enableIntermediate = this.getNodeParameter('summaryOptions.enableIntermediateProcessing', 0, false) as boolean;
++      
++      let summaryManager: RecursiveSummaryManager | RecursiveSummaryAdapter;
++      
++      if (enableIntermediate) {
++        // Use adapter for enhanced processing
++        summaryManager = new RecursiveSummaryAdapter();
++      } else {
++        // Use original manager for backward compatibility
++        summaryManager = new RecursiveSummaryManager();
++      }
++      
++      const allLevelMetadata: IDataObject[] = [];
+       
+       for (let i = 0; i < items.length; i++) {
+         try {
+@@ -758,14 +847,69 @@ export class BitNet implements INodeType {
+           };
+ 
+           const summaryManagerWithConfig = new RecursiveSummaryManager(config);
++          let enhancedManager: RecursiveSummaryAdapter | null = null;
++          
++          // Set up enhanced processing if enabled
++          if (enableIntermediate) {
++            enhancedManager = new RecursiveSummaryAdapter(config);
++            const processingOptions = summaryOptions.intermediateProcessing as IDataObject || {};
++            
++            // Configure processing hooks
++            const hooks: ProcessorHook = {};
++            
++            if (processingOptions.semanticGrouping || processingOptions.extractKeywords) {
++              hooks.beforeSummarization = async (chunks, level, metadata) => {
++                const processedMetadata = { ...metadata };
++                let grouping;
++                
++                if (processingOptions.semanticGrouping) {
++                  // Simple semantic grouping based on chunk similarity
++                  // In production, this would use embeddings
++                  const maxGroups = processingOptions.maxGroups as number || 5;
++                  const groupSize = Math.ceil(chunks.length / maxGroups);
++                  grouping = [];
++                  
++                  for (let g = 0; g < chunks.length; g += groupSize) {
++                    grouping.push({
++                      indices: Array.from({ length: Math.min(groupSize, chunks.length - g) }, (_, i) => g + i),
++                      theme: `Group ${grouping.length + 1}`,
++                    });
++                  }
++                  
++                  processedMetadata.semanticGroups = grouping.length;
++                }
++                
++                if (processingOptions.extractKeywords) {
++                  // Simple keyword extraction
++                  processedMetadata.keywords = chunks.flatMap(chunk => 
++                    chunk.split(' ')
++                      .filter(word => word.length > 5)
++                      .slice(0, 3)
++                  ).slice(0, 10);
++                }
++                
++                return { chunks, metadata: processedMetadata, grouping };
++              };
++            }
++            
++            if (processingOptions.extractEntities) {
++              hooks.afterSummarization = async (summaries, level, metadata) => {
++                // Simple entity extraction (would use NER in production)
++                const entities = summaries.join(' ').match(/[A-Z][a-z]+/g) || [];
++                return {
++                  summaries,
++                  metadata: { ...metadata, entities: [...new Set(entities)].slice(0, 10) }
++                };
++              };
++            }
++            
++            enhancedManager.setProcessorHooks(hooks);
++          }
+           
+           // Perform recursive summarization
+           const levels: SummaryLevel[] = [];
+           let currentText = text;
+           let currentLevel = 0;
+ 
+-          while (currentLevel < config.maxLevels && summaryManagerWithConfig.needsChunking(currentText, 3000)) {
+-            const chunks = summaryManagerWithConfig.splitIntoChunks(currentText);
++          while (currentLevel < config.maxLevels && (enhancedManager || summaryManagerWithConfig).needsChunking(currentText, 3000)) {
++            const chunks = (enhancedManager || summaryManagerWithConfig).splitIntoChunks(currentText);
+             const summaries: string[] = [];
+ 
+             // Process each chunk
+@@ -796,11 +940,25 @@ export class BitNet implements INodeType {
+               const summaryText = response.choices?.[0]?.text || response.content || '';
+               summaries.push(summaryText);
+             }
++            
++            // Apply enhanced processing if available
++            let levelMetadata: IDataObject = {
++              chunkCount: chunks.length,
++              totalLength: currentText.length,
++              summaryLength: summaries.join(' ').length,
++            };
++            
++            if (enhancedManager && enableIntermediate) {
++              const processed = await enhancedManager.processWithHooks(chunks, currentLevel, async (chunk) => {
++                // This would be replaced with the actual summarization call
++                return summaries[chunks.indexOf(chunk)] || '';
++              });
++              levelMetadata = { ...levelMetadata, ...processed.metadata };
++            }
+ 
+             // Store level data
+             levels.push({
+               level: currentLevel,
+               chunks,
+               summaries,
+-              metadata: {
+-                chunkCount: chunks.length,
+-                totalLength: currentText.length,
+-                summaryLength: summaries.join(' ').length,
+-              },
++              metadata: levelMetadata,
+             });
++            allLevelMetadata.push(levelMetadata);
+ 
+             // Prepare for next level
+@@ -868,6 +1026,11 @@ export class BitNet implements INodeType {
+                   summaryLength: levels[levels.length - 1].summaries[0].length,
+                   compressionRatio: (levels[levels.length - 1].summaries[0].length / text.length).toFixed(2),
+                   levelsProcessed: levels.length,
++                  // Include processing metadata if enabled
++                  ...(enableIntermediate && summaryOptions.intermediateProcessing?.preserveMetadata ? {
++                    processingMetadata: allLevelMetadata,
++                    intermediateProcessingEnabled: true,
++                  } : {}),
+                 },
+               };
+               break;

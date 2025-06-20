@@ -1,6 +1,8 @@
 # n8n-nodes-bitnet
 
-This is an n8n community node that provides integration with BitNet 1-bit LLMs for efficient inference, with special support for recursive document summarization.
+This is an n8n community node that provides integration with BitNet 1-bit LLMs for efficient inference, with special support for recursive document summarization and full AI Agent compatibility.
+
+🎉 **NEW**: BitNet now works as a chat model for n8n AI Agents! Use efficient 1-bit models with Conversational Agents, Tool Agents, ReAct Agents, and more.
 
 ## Quick Start (Tested Setup)
 
@@ -29,17 +31,17 @@ This is an n8n community node that provides integration with BitNet 1-bit LLMs f
 
 ## Features
 
-- **Dual Server Modes**: 
-  - External: Connect to existing BitNet server
-  - Managed: Auto-start and manage BitNet server lifecycle
-- **7 Operations**: 
+- **AI Agent Integration**: Works as a chat model with n8n AI Agents and AI Chains
+- **Dual Operation Modes**: 
+  - **Standalone Node**: Direct text completion and chat operations
+  - **AI Agent Sub-node**: Language model for AI Agents via `supplyData` interface
+- **Core Operations**: 
   - Text Completion
   - Chat Completion (OpenAI-compatible)
   - **Recursive Summary** (hierarchical text summarization)
   - Generate Embeddings
   - Tokenize
   - Health Check
-  - **Server Control** (start/stop/restart/status)
 - **Advanced Features**:
   - Thinking/reasoning extraction from model outputs
   - Streaming support
@@ -260,6 +262,56 @@ Import the included example workflow to get started:
 4. **Pinecone** node → store embeddings
 5. **BitNet LLM** node (Server Control: Stop) → clean up resources
 
+## AI Agent Integration
+
+BitNet can be used as a language model for n8n's AI Agents and AI Chains, providing efficient 1-bit inference for conversational AI applications.
+
+### Architecture
+
+The BitNet node implements the `ISupplyDataFunctions` interface, allowing it to serve as a language model sub-node:
+
+1. **Output Type**: `NodeConnectionType.AiLanguageModel`
+2. **Connection**: Connect BitNet to AI Agent or AI Chain nodes
+3. **Interface**: Implements `supplyData` method with `invoke` function
+4. **Message Handling**: Accepts standard chat message format with roles
+
+### Using with AI Agents
+
+1. **Add AI Agent Node**: 
+   - Add an AI Agent node (Conversational, Tools, ReAct, etc.)
+   - Configure agent parameters
+
+2. **Add BitNet Node**:
+   - Add BitNet node separately
+   - Configure server URL and model
+   - Set any default parameters
+
+3. **Connect Nodes**:
+   - Connect BitNet's output to AI Agent's "Chat Model" input
+   - BitNet will provide language model capabilities
+
+### Example: Conversational Agent with BitNet
+
+```
+[Chat Trigger] → [Conversational Agent] → [Response]
+                         ↓
+                   [BitNet Chat Model]
+                         ↓
+                   [Memory (optional)]
+```
+
+### Integration with Hierarchical Summarization
+
+BitNet works seamlessly with the Hierarchical Summarization node:
+
+```
+[Document Input] → [Hierarchical Summarization] → [Summary Output]
+                            ↓
+                      [BitNet Chat Model]
+```
+
+This allows for efficient document processing using BitNet's low-resource inference.
+
 ## Recursive Summary Details
 
 The recursive summary feature is designed for processing large documents efficiently:
@@ -445,6 +497,46 @@ node bitnet-server-wrapper.js
 # Run setup script test
 ./setup-bitnet.sh
 ```
+
+### Creating AI Agent Compatible Nodes
+
+This node demonstrates patterns for creating custom AI language model nodes:
+
+#### Key Requirements
+
+1. **Output Configuration**:
+   ```typescript
+   outputs: [NodeConnectionType.AiLanguageModel],
+   outputNames: ['Model']
+   ```
+
+2. **Supply Data Implementation**:
+   ```typescript
+   async supplyData(this: ISupplyDataFunctions): Promise<any> {
+     return {
+       invoke: async (params: { messages, options }) => {
+         // Process messages and return response
+         return { text: response, content: response };
+       }
+     };
+   }
+   ```
+
+3. **Dual Mode Support**:
+   - Standalone execution via `execute()` method
+   - Sub-node operation via `supplyData()` method
+
+4. **Message Format Handling**:
+   - Accept array of `{role, content}` messages
+   - Support options like temperature, max tokens
+   - Return standardized response format
+
+#### Design Considerations
+
+- **Backwards Compatibility**: Node supports both direct use and AI Agent integration
+- **Error Handling**: Graceful failures with clear error messages
+- **Performance**: Efficient message processing and response generation
+- **Extensibility**: Easy to add new model parameters and features
 
 ## Resources
 

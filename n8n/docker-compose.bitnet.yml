@@ -11,7 +11,7 @@ services:
       - ./bitnet-models:/models
     environment:
       # Default model path (adjust based on your model location)
-      - MODEL_PATH=/models/bitnet-b1.58.gguf
+      - MODEL_PATH=/models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf
       # Performance settings
       - N_THREADS=4
       - N_GPU_LAYERS=0  # Set to number of layers to offload to GPU if available
@@ -27,7 +27,7 @@ services:
       timeout: 10s
       retries: 3
     networks:
-      - app-network
+      - backend
     restart: unless-stopped
 
   # Alternative: Build BitNet from source
@@ -41,13 +41,13 @@ services:
   #   volumes:
   #     - ./bitnet-models:/models
   #   environment:
-  #     - MODEL_PATH=/models/bitnet-b1.58.gguf
+  #     - MODEL_PATH=/models/BitNet-b1.58-2B-4T/ggml-model-i2_s.gguf
   #   command: python run_inference_server.py -m ${MODEL_PATH} --host 0.0.0.0
   #   networks:
   #     - app-network
   #   restart: unless-stopped
 
 networks:
-  app-network:
+  backend:
     external: true
-    name: data-compose_default
+    name: data-compose_backend
