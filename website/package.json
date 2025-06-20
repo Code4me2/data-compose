@@ -1,0 +1,66 @@
+{
+  "name": "data-compose-website",
+  "version": "1.0.0",
+  "description": "Data Compose - AI-powered workflow automation interface",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:docker": "npm run build && cp -r dist/* .",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts,.tsx",
+    "lint:fix": "eslint src --ext .ts,.tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,json,css}\"",
+    "type-check": "tsc --noEmit",
+    "prepare": "cd .. && husky install website/.husky",
+    "docker:dev": "cd .. && docker-compose up -d && cd website && npm run dev",
+    "docker:build": "npm run build && cd .. && docker-compose up -d"
+  },
+  "dependencies": {
+    "alpinejs": "^3.13.3",
+    "d3": "^7.8.5"
+  },
+  "devDependencies": {
+    "@types/alpinejs": "^3.13.5",
+    "@types/d3": "^7.4.3",
+    "@types/node": "^20.10.5",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0",
+    "@vitest/coverage-v8": "^1.1.0",
+    "@vitest/ui": "^1.1.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.2",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10",
+    "vitest": "^1.1.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,md}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "n8n",
+    "workflow",
+    "automation",
+    "ai",
+    "typescript",
+    "alpine"
+  ],
+  "author": "Data Compose Team",
+  "license": "MIT"
+}
