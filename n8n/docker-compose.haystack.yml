@@ -28,7 +28,7 @@ services:
 
   haystack-service:
     build:
-      context: ./n8n/haystack-service
+      context: ./haystack-service
       dockerfile: Dockerfile
     container_name: haystack-judicial
     ports:
@@ -41,7 +41,7 @@ services:
       elasticsearch:
         condition: service_healthy
     volumes:
-      - ./n8n/haystack-service:/app
+      - ./haystack-service:/app
       - haystack_models:/app/models
     networks:
       - backend
