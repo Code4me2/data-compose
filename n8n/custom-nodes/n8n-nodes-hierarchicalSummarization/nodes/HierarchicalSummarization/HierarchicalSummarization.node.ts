@@ -685,6 +685,7 @@ async function performHierarchicalSummarization(
   let currentLevel = 0;
   let continueProcessing = true;
   let previousDocumentCount = 0;
+  let previousTotalTokens = 0;
   
   while (continueProcessing) {
     // Check for overall timeout
@@ -710,10 +711,29 @@ async function performHierarchicalSummarization(
     
     // Check for convergence - are we making progress?
     if (currentLevel > 0 && documents.length >= previousDocumentCount) {
-      throw new Error(`Summarization not converging: Level ${currentLevel-1} had ${previousDocumentCount} documents, Level ${currentLevel} has ${documents.length} documents. This indicates an infinite loop.`);
+      // Instead of immediately failing, check if the total content size is decreasing
+      const currentTotalTokens = documents.reduce((sum, doc) => 
+        sum + estimateTokenCount(doc.summary || doc.content), 0
+      );
+      
+      // If we're not reducing document count, we should at least be reducing total tokens
+      if (currentLevel > 1 && currentTotalTokens >= previousTotalTokens * 0.9) {
+        throw new Error(
+          `Summarization not converging: Level ${currentLevel-1} had ${previousDocumentCount} documents (${previousTotalTokens} tokens), ` +
+          `Level ${currentLevel} has ${documents.length} documents (${currentTotalTokens} tokens). ` +
+          `This indicates summaries are not reducing content size. ` +
+          `Try: 1) Reducing AI output tokens (current: ~50), 2) Increasing batch size (current: ${config.batchSize}), ` +
+          `or 3) Using more aggressive summarization prompts.`
+        );
+      }
+      
+      console.log(`[HS Progress] Level ${currentLevel}: Same document count but tokens reduced from ${previousTotalTokens} to ${currentTotalTokens}`);
     }
     
     previousDocumentCount = documents.length;
+    previousTotalTokens = documents.reduce((sum, doc) => 
+      sum + estimateTokenCount(doc.summary || doc.content), 0
+    );
     
     // If only one document remains, we've reached the top
     if (documents.length === 1) {
@@ -1137,7 +1157,32 @@ async function summarizeChunk(
       throw new Error('AI model returned empty response');
     }
 
-    return summary.trim();
+    const trimmedSummary = summary.trim();
+    
+    // Check if the summary is actually summarizing (should be significantly shorter)
+    const originalLength = chunk.content.length;
+    const summaryLength = trimmedSummary.length;
+    
+    if (summaryLength >= originalLength * 0.8) {
+      throw new Error(
+        `Summary is not reducing content size sufficiently. ` +
+        `Original: ${originalLength} chars, Summary: ${summaryLength} chars (${Math.round(summaryLength/originalLength*100)}%). ` +
+        `The AI model is not summarizing effectively. ` +
+        `Try: 1) More explicit summarization prompts, 2) Reducing AI output token limit, or 3) Using a different AI model.`
+      );
+    }
+    
+    // Also check token count
+    const originalTokens = chunk.tokenCount;
+    const summaryTokens = estimateTokenCount(trimmedSummary);
+    
+    if (summaryTokens >= originalTokens * 0.5) {
+      console.warn(
+        `[HS Warning] Summary token reduction is minimal: ${originalTokens} → ${summaryTokens} tokens (${Math.round(summaryTokens/originalTokens*100)}%)`
+      );
+    }
+
+    return trimmedSummary;
     
   } catch (error) {
     // If AI model fails, provide a fallback summary
