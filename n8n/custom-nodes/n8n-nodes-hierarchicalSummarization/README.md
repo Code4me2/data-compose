@@ -10,6 +10,11 @@ This is an n8n community node that provides hierarchical document summarization 
 - 💾 **PostgreSQL Storage**: Persists document hierarchies for analysis
 - 🤖 **AI Model Flexibility**: Works with any n8n-compatible language model
 - ⚡ **Transaction Safety**: Atomic operations ensure data consistency
+- 🛡️ **Production-Ready Resilience**: Handles AI server failures gracefully
+- 🔁 **Automatic Retry Logic**: Exponential backoff with jitter
+- 🚦 **Circuit Breaker**: Prevents cascading failures
+- 📊 **Rate Limiting**: Protects AI servers from overload
+- 🎯 **Fallback Summaries**: Generates basic summaries when AI unavailable
 
 ## Installation
 
@@ -40,6 +45,20 @@ If using the Docker setup from data-compose:
 | Directory Path | string | (empty) | Path to .txt files (when using directory source) |
 | Batch Size | number | `2048` | Maximum tokens per chunk (100-32768) |
 | Database Config | options | `credentials` | Database connection method |
+| **Resilience Options** | collection | See below | Configure retry, circuit breaker, and rate limiting |
+
+#### Resilience Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| Enable Retry Logic | boolean | `true` | Retry failed AI requests with exponential backoff |
+| Max Retries | number | `3` | Maximum retry attempts before giving up |
+| Request Timeout | number | `60000` | Timeout per AI request in milliseconds |
+| Enable Fallback Summaries | boolean | `true` | Generate extractive summaries when AI fails |
+| Rate Limit | number | `30` | Maximum requests per minute to AI server |
+| Enable Circuit Breaker | boolean | `true` | Stop attempting requests when server is down |
+| Circuit Breaker Threshold | number | `5` | Consecutive failures before opening circuit |
+| Circuit Breaker Reset Time | number | `60000` | Time to wait before testing server recovery |
 
 ### Database Configuration
 
@@ -104,7 +123,10 @@ The node automatically creates these tables:
 hierarchical_documents (
   id, content, summary, batch_id, 
   hierarchy_level, parent_id, child_ids,
-  metadata, token_count, timestamps
+  metadata, token_count, timestamps,
+  document_type,        -- 'source', 'chunk', 'batch', 'summary'
+  chunk_index,          -- Order within parent document
+  source_document_ids   -- Array of original document IDs
 )
 
 processing_status (
@@ -114,20 +136,36 @@ processing_status (
 )
 ```
 
+See `schema.sql` for complete database structure and migration scripts.
+
 ## How It Works
 
-1. **Document Indexing**: Source documents are stored at hierarchy level 0
-2. **Chunking**: Large documents are split into manageable chunks
-3. **Summarization**: Each chunk/document is summarized by the AI model
-4. **Hierarchical Processing**: Summaries are grouped and summarized again
-5. **Convergence**: Process continues until a single summary remains
+The node creates a 4-level hierarchy structure:
+
+1. **Level 0 - Source Documents**: Original documents are indexed and stored
+2. **Level 1 - Batches/Chunks**: Documents are grouped into batches based on token limits
+   - These preserve the exact content that will be summarized
+   - Provides full traceability from summaries back to sources
+3. **Level 2 - First Summaries**: Each batch from Level 1 is summarized by the AI
+4. **Level 3+ - Higher Summaries**: Summaries are progressively condensed
+5. **Convergence**: Process continues until a single final summary remains
+
+This architecture ensures complete traceability - you can trace any summary back through the batches to the original source documents.
 
 ## Token Management
 
 The node automatically calculates available tokens:
-- `Available = BatchSize - PromptTokens - SafetyBuffer(50)`
+- `Available = BatchSize - PromptTokens - SafetyBuffer(100)`
 - Ensures chunks fit within AI model limits
 - Prevents token overflow errors
+- Tracks token reduction between levels for convergence
+
+## Performance Optimizations
+
+- **Fixed chunking prompt growth**: Each chunk is now independent
+- **Streaming for large files**: Files >50MB are streamed
+- **Intelligent batching**: Maximizes token utilization
+- **Summary validation**: Ensures AI is actually condensing content
 
 ## Error Handling
 
@@ -161,8 +199,60 @@ npm run dev         # Watch mode for development
 ## Requirements
 
 - n8n >= 0.180.0
-- PostgreSQL database
+- PostgreSQL database with permissions for CREATE TABLE, INSERT, UPDATE, SELECT
 - Node.js >= 18.10
+- Connected AI Language Model node (BitNet, OpenAI, etc.)
+
+## Recent Improvements
+
+- **Level 1 Batch Documents**: Now preserves exact batched content for full traceability
+- **Fixed Infinite Recursion**: Summaries are no longer re-chunked at higher levels
+- **Enhanced Convergence Detection**: Better handling of edge cases and small documents
+- **Improved Error Messages**: More actionable troubleshooting guidance
+- **Production-Ready Resilience**: Complete protection against AI server failures
+- **Automatic Schema Migration**: Handles database updates seamlessly
+
+## Resilience Features
+
+### Retry Logic with Exponential Backoff
+When AI requests fail, the node automatically retries with increasing delays:
+- 1st retry: ~1 second delay
+- 2nd retry: ~2 seconds delay  
+- 3rd retry: ~4 seconds delay
+- Includes random jitter to prevent thundering herd
+
+### Circuit Breaker Pattern
+Protects against cascading failures:
+- **Closed State**: Normal operation
+- **Open State**: After 5 consecutive failures, stops attempting requests
+- **Half-Open State**: After 60 seconds, tests with limited requests
+- Automatically recovers when server is back online
+
+### Rate Limiting
+Prevents overwhelming the AI server:
+- Default: 30 requests per minute
+- Queues excess requests automatically
+- Maintains consistent request spacing
+- Shows queue status in logs
+
+### Fallback Summaries
+When AI is completely unavailable:
+- Generates extractive summaries using key sentences
+- Clearly marks summaries as AI-generated vs fallback
+- Ensures workflow continues despite AI failures
+
+### Example Resilience Logs
+```
+[HS 0] Circuit breaker initialized
+[HS 0] Rate limiter initialized: 30 requests/minute
+[HS 0] [Retry] Attempt 1 failed: Connection refused. Retrying in 1047ms...
+[HS 0] [Retry] Attempt 2 failed: Connection refused. Retrying in 2089ms...
+[HS 0] Error: Connection refused
+[HS 0] Using fallback summary generation
+[CircuitBreaker] Opening circuit after 5 consecutive failures
+[HS 1] Error: Circuit breaker is OPEN - BitNet server is unavailable. Will retry in 45 seconds
+[HS 1] Using fallback summary generation
+```
 
 ## License
 
@@ -172,6 +262,82 @@ npm run dev         # Watch mode for development
 
 - [n8n community nodes documentation](https://docs.n8n.io/integrations/community-nodes/)
 - [PostgreSQL setup for n8n](https://docs.n8n.io/hosting/databases/postgres/)
+
+## Future Development: Integration Testing
+
+### Planned Integration Test Suite
+
+The node's new architecture and resilience features require comprehensive integration testing. Here's the planned testing strategy:
+
+#### 1. Hierarchical Architecture Tests
+- **Level Transition Verification**: Test the complete flow from Level 0 (sources) → Level 1 (batches) → Level 2 (summaries) → Level 3+ (higher summaries)
+- **Document Traceability**: Verify source_document_ids tracking through all levels
+- **Batch Creation**: Test various document sizes and token counts to ensure proper batching
+- **Convergence Testing**: Validate that hierarchies always converge to a single summary
+
+#### 2. Resilience Feature Tests
+- **BitNet Failure Simulation**: 
+  - Complete server unavailability
+  - Intermittent connection issues
+  - Slow response times
+  - Rate limit violations
+- **Circuit Breaker Behavior**:
+  - Opening after threshold failures
+  - Half-open state recovery
+  - Automatic closing when service recovers
+- **Rate Limiter Verification**:
+  - Queue management under high load
+  - Request spacing validation
+  - Concurrent request handling
+
+#### 3. Database Migration Tests
+- **Schema Evolution**: Test migration from old schema to new with existing data
+- **Column Addition**: Verify automatic addition of missing columns
+- **Data Integrity**: Ensure no data loss during migration
+- **Rollback Scenarios**: Test behavior with partial migrations
+
+#### 4. End-to-End Workflow Tests
+- **Large Document Processing**: Test with 100+ documents of varying sizes
+- **Mixed Content Types**: Legal documents, technical documentation, narrative text
+- **Error Recovery**: Verify workflow continues after various failure points
+- **Performance Benchmarks**: Establish baseline processing times
+
+#### 5. Test Implementation Approach
+```javascript
+// Example test structure
+describe('Hierarchical Summarization Integration', () => {
+  it('should process documents through all hierarchy levels', async () => {
+    // Setup test documents
+    // Execute workflow
+    // Verify Level 1 batches created
+    // Verify Level 2 summaries generated
+    // Verify final summary convergence
+  });
+
+  it('should handle BitNet server failures gracefully', async () => {
+    // Mock BitNet server with failure modes
+    // Execute workflow
+    // Verify retry attempts
+    // Verify fallback summaries generated
+    // Verify workflow completion
+  });
+});
+```
+
+#### 6. Test Infrastructure Requirements
+- **Mock BitNet Server**: Configurable failure modes for resilience testing
+- **Test Database**: Isolated PostgreSQL instance for migration testing
+- **Performance Monitoring**: Metrics collection for benchmarking
+- **CI/CD Integration**: Automated test execution on code changes
+
+#### 7. Testing Timeline
+1. **Phase 1**: Unit tests for individual components (existing)
+2. **Phase 2**: Integration tests for core functionality
+3. **Phase 3**: Resilience and failure scenario tests
+4. **Phase 4**: Performance and scale testing
+5. **Phase 5**: Deployment readiness validation
+
+This comprehensive testing approach will ensure the node is production-ready and can handle real-world scenarios reliably.
 
 ## Support
 

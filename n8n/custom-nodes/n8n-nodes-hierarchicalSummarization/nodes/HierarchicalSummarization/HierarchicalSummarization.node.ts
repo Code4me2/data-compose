@@ -19,6 +19,12 @@ import { Pool } from 'pg';
 // Constants and interfaces
 const CHARS_PER_TOKEN = 4;
 
+// Global circuit breaker instance (shared across all executions)
+let globalCircuitBreaker: CircuitBreaker | null = null;
+
+// Global rate limiter instance (shared across all executions)
+let globalRateLimiter: RateLimiter | null = null;
+
 interface HierarchicalDocument {
   id?: number;
   content: string;
@@ -30,6 +36,11 @@ interface HierarchicalDocument {
   metadata?: IDataObject;
   created_at?: Date;
   updated_at?: Date;
+  // New fields for better traceability
+  document_type?: 'source' | 'chunk' | 'batch' | 'summary';
+  chunk_index?: number;
+  source_document_ids?: number[];
+  token_count?: number;
 }
 
 interface ProcessingConfig {
@@ -37,6 +48,7 @@ interface ProcessingConfig {
   contextPrompt: string;
   batchSize: number;
   batchId: string;
+  resilience?: ResilienceConfig;
 }
 
 interface DocumentChunk {
@@ -45,6 +57,172 @@ interface DocumentChunk {
   parentDocumentId?: number;
   tokenCount: number;
   metadata?: any;
+}
+
+interface RetryConfig {
+  maxRetries: number;
+  initialDelay: number;
+  maxDelay: number;
+  backoffMultiplier: number;
+  jitterFactor: number;
+}
+
+interface ResilienceConfig {
+  retryEnabled: boolean;
+  retryConfig: RetryConfig;
+  requestTimeout: number;
+  fallbackEnabled: boolean;
+  rateLimit: number;
+  circuitBreakerEnabled?: boolean;
+  circuitBreakerThreshold?: number;
+  circuitBreakerResetTimeout?: number;
+}
+
+interface CircuitBreakerConfig {
+  failureThreshold: number;
+  resetTimeout: number;
+  halfOpenRequests: number;
+}
+
+// Circuit breaker state management
+class CircuitBreaker {
+  private failures = 0;
+  private lastFailureTime = 0;
+  private state: 'closed' | 'open' | 'half-open' = 'closed';
+  private halfOpenAttempts = 0;
+  private successfulHalfOpenRequests = 0;
+  
+  constructor(private config: CircuitBreakerConfig) {}
+  
+  async execute<T>(operation: () => Promise<T>): Promise<T> {
+    // Check if circuit should transition from open to half-open
+    if (this.state === 'open') {
+      const timeSinceLastFailure = Date.now() - this.lastFailureTime;
+      if (timeSinceLastFailure > this.config.resetTimeout) {
+        console.log('[CircuitBreaker] Transitioning from OPEN to HALF-OPEN');
+        this.state = 'half-open';
+        this.halfOpenAttempts = 0;
+        this.successfulHalfOpenRequests = 0;
+      } else {
+        throw new Error(`Circuit breaker is OPEN - BitNet server is unavailable. Will retry in ${Math.round((this.config.resetTimeout - timeSinceLastFailure) / 1000)} seconds`);
+      }
+    }
+    
+    // In half-open state, limit the number of test requests
+    if (this.state === 'half-open' && this.halfOpenAttempts >= this.config.halfOpenRequests) {
+      // Decide whether to close or re-open based on success rate
+      if (this.successfulHalfOpenRequests >= Math.ceil(this.config.halfOpenRequests / 2)) {
+        console.log('[CircuitBreaker] Closing circuit - server recovered');
+        this.state = 'closed';
+        this.failures = 0;
+      } else {
+        console.log('[CircuitBreaker] Re-opening circuit - server still failing');
+        this.state = 'open';
+        this.lastFailureTime = Date.now();
+      }
+    }
+    
+    try {
+      const result = await operation();
+      this.onSuccess();
+      return result;
+    } catch (error) {
+      this.onFailure();
+      throw error;
+    }
+  }
+  
+  private onSuccess() {
+    if (this.state === 'half-open') {
+      this.successfulHalfOpenRequests++;
+      this.halfOpenAttempts++;
+      console.log(`[CircuitBreaker] Half-open success ${this.successfulHalfOpenRequests}/${this.halfOpenAttempts}`);
+    } else if (this.state === 'closed') {
+      // Reset failure count on success
+      this.failures = 0;
+    }
+  }
+  
+  private onFailure() {
+    this.failures++;
+    this.lastFailureTime = Date.now();
+    
+    if (this.state === 'half-open') {
+      this.halfOpenAttempts++;
+      console.log(`[CircuitBreaker] Half-open failure ${this.halfOpenAttempts - this.successfulHalfOpenRequests}/${this.halfOpenAttempts}`);
+    } else if (this.state === 'closed' && this.failures >= this.config.failureThreshold) {
+      console.log(`[CircuitBreaker] Opening circuit after ${this.failures} consecutive failures`);
+      this.state = 'open';
+    }
+  }
+  
+  getState(): string {
+    return this.state;
+  }
+}
+
+// Rate limiter with request queue
+class RateLimiter {
+  private queue: Array<{
+    execute: () => Promise<any>;
+    resolve: (value: any) => void;
+    reject: (error: any) => void;
+  }> = [];
+  private processing = false;
+  private lastRequestTime = 0;
+  
+  constructor(
+    private requestsPerMinute: number
+  ) {}
+  
+  async execute<T>(operation: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({
+        execute: operation,
+        resolve,
+        reject
+      });
+      
+      if (!this.processing) {
+        this.processQueue();
+      }
+    });
+  }
+  
+  private async processQueue() {
+    this.processing = true;
+    
+    while (this.queue.length > 0) {
+      const request = this.queue.shift();
+      if (!request) continue;
+      
+      // Calculate minimum interval between requests
+      const minInterval = 60000 / this.requestsPerMinute;
+      const timeSinceLastRequest = Date.now() - this.lastRequestTime;
+      
+      // Wait if necessary to maintain rate limit
+      if (timeSinceLastRequest < minInterval) {
+        const waitTime = minInterval - timeSinceLastRequest;
+        console.log(`[RateLimiter] Waiting ${Math.round(waitTime)}ms to maintain rate limit`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+      
+      this.lastRequestTime = Date.now();
+      
+      try {
+        const result = await request.execute();
+        request.resolve(result);
+      } catch (error) {
+        request.reject(error);
+      }
+    }
+    
+    this.processing = false;
+  }
+  
+  getQueueLength(): number {
+    return this.queue.length;
+  }
 }
 
 export class HierarchicalSummarization implements INodeType {
@@ -232,6 +410,93 @@ export class HierarchicalSummarization implements INodeType {
           },
         },
       },
+      // Resilience Configuration
+      {
+        displayName: 'Resilience Options',
+        name: 'resilience',
+        type: 'collection',
+        placeholder: 'Add Resilience Option',
+        default: {
+          retryEnabled: true,
+          maxRetries: 3,
+          requestTimeout: 60000,
+          fallbackEnabled: true,
+          rateLimit: 30,
+        },
+        options: [
+          {
+            displayName: 'Enable Retry Logic',
+            name: 'retryEnabled',
+            type: 'boolean',
+            default: true,
+            description: 'Retry failed AI requests with exponential backoff',
+          },
+          {
+            displayName: 'Max Retries',
+            name: 'maxRetries',
+            type: 'number',
+            default: 3,
+            description: 'Maximum number of retry attempts',
+            displayOptions: {
+              show: {
+                retryEnabled: [true],
+              },
+            },
+          },
+          {
+            displayName: 'Request Timeout (ms)',
+            name: 'requestTimeout',
+            type: 'number',
+            default: 60000,
+            description: 'Timeout for each AI request in milliseconds',
+          },
+          {
+            displayName: 'Enable Fallback Summaries',
+            name: 'fallbackEnabled',
+            type: 'boolean',
+            default: true,
+            description: 'Generate basic summaries when AI is unavailable',
+          },
+          {
+            displayName: 'Rate Limit (requests/min)',
+            name: 'rateLimit',
+            type: 'number',
+            default: 30,
+            description: 'Maximum AI requests per minute',
+          },
+          {
+            displayName: 'Enable Circuit Breaker',
+            name: 'circuitBreakerEnabled',
+            type: 'boolean',
+            default: true,
+            description: 'Stop trying when server is down to prevent cascading failures',
+          },
+          {
+            displayName: 'Circuit Breaker Threshold',
+            name: 'circuitBreakerThreshold',
+            type: 'number',
+            default: 5,
+            description: 'Number of consecutive failures before opening circuit',
+            displayOptions: {
+              show: {
+                circuitBreakerEnabled: [true],
+              },
+            },
+          },
+          {
+            displayName: 'Circuit Breaker Reset Time (ms)',
+            name: 'circuitBreakerResetTimeout',
+            type: 'number',
+            default: 60000,
+            description: 'Time to wait before testing if server recovered',
+            displayOptions: {
+              show: {
+                circuitBreakerEnabled: [true],
+              },
+            },
+          },
+        ],
+      },
     ],
   };
 
@@ -328,12 +593,32 @@ export class HierarchicalSummarization implements INodeType {
               throw new Error('Invalid batch ID generated');
             }
             
+            // Get resilience configuration
+            const resilienceOptions = this.getNodeParameter('resilience', itemIndex) as IDataObject;
+            const resilience: ResilienceConfig = {
+              retryEnabled: resilienceOptions.retryEnabled as boolean ?? true,
+              retryConfig: {
+                maxRetries: resilienceOptions.maxRetries as number ?? 3,
+                initialDelay: 1000,
+                maxDelay: 30000,
+                backoffMultiplier: 2,
+                jitterFactor: 0.1
+              },
+              requestTimeout: resilienceOptions.requestTimeout as number ?? 60000,
+              fallbackEnabled: resilienceOptions.fallbackEnabled as boolean ?? true,
+              rateLimit: resilienceOptions.rateLimit as number ?? 30,
+              circuitBreakerEnabled: resilienceOptions.circuitBreakerEnabled as boolean ?? true,
+              circuitBreakerThreshold: resilienceOptions.circuitBreakerThreshold as number ?? 5,
+              circuitBreakerResetTimeout: resilienceOptions.circuitBreakerResetTimeout as number ?? 60000
+            };
+            
             // Initialize processing configuration
             const config: ProcessingConfig = {
               summaryPrompt,
               contextPrompt,
               batchSize,
               batchId,
+              resilience,
             };
             
             // Process based on content source
@@ -524,8 +809,70 @@ function extractTextContent(item: INodeExecutionData): string | null {
 
 // Helper functions
 
+// Retry logic with exponential backoff
+async function retryWithBackoff<T>(
+  operation: () => Promise<T>,
+  config: RetryConfig,
+  logger?: (message: string) => void
+): Promise<T> {
+  let lastError: Error;
+  
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      
+      if (attempt === config.maxRetries) {
+        logger?.(`[Retry] All ${config.maxRetries + 1} attempts failed. Final error: ${lastError.message}`);
+        break;
+      }
+      
+      // Calculate delay with exponential backoff + jitter
+      const baseDelay = Math.min(
+        config.initialDelay * Math.pow(config.backoffMultiplier, attempt),
+        config.maxDelay
+      );
+      const jitter = baseDelay * config.jitterFactor * (Math.random() - 0.5) * 2;
+      const delay = Math.round(baseDelay + jitter);
+      
+      logger?.(`[Retry] Attempt ${attempt + 1} failed: ${lastError.message}. Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError!;
+}
+
+// Fallback summary generation when AI is unavailable
+function generateFallbackSummary(chunk: DocumentChunk): string {
+  const sentences = splitIntoSentences(chunk.content);
+  
+  if (sentences.length === 0) {
+    return '[AI Unavailable] Document appears to be empty.';
+  }
+  
+  if (sentences.length <= 2) {
+    return `[AI Unavailable - Original] ${chunk.content}`;
+  }
+  
+  // Simple extractive summarization: first and longest sentence
+  const firstSentence = sentences[0];
+  const longestSentence = sentences
+    .slice(1, -1)
+    .sort((a, b) => b.length - a.length)[0] || sentences[1];
+  
+  // Ensure we don't duplicate if first is also longest
+  const summary = firstSentence === longestSentence 
+    ? firstSentence 
+    : `${firstSentence} ${longestSentence}`;
+  
+  return `[AI Unavailable - Extracted] ${summary}`;
+}
+
 async function ensureDatabaseSchema(pool: Pool): Promise<void> {
   
+  // Create tables if they don't exist
   const schemaSQL = `
     -- Main documents table with hierarchy tracking
     CREATE TABLE IF NOT EXISTS hierarchical_documents (
@@ -563,6 +910,45 @@ async function ensureDatabaseSchema(pool: Pool): Promise<void> {
   `;
   
   await pool.query(schemaSQL);
+  
+  // Add new columns if they don't exist (for existing databases)
+  const migrationSQL = `
+    DO $$ 
+    BEGIN
+      -- Add document_type column if it doesn't exist
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                     WHERE table_name = 'hierarchical_documents' 
+                     AND column_name = 'document_type') THEN
+          ALTER TABLE hierarchical_documents 
+          ADD COLUMN document_type VARCHAR(20) DEFAULT 'source';
+      END IF;
+      
+      -- Add chunk_index column if it doesn't exist
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                     WHERE table_name = 'hierarchical_documents' 
+                     AND column_name = 'chunk_index') THEN
+          ALTER TABLE hierarchical_documents 
+          ADD COLUMN chunk_index INTEGER;
+      END IF;
+      
+      -- Add source_document_ids column if it doesn't exist
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                     WHERE table_name = 'hierarchical_documents' 
+                     AND column_name = 'source_document_ids') THEN
+          ALTER TABLE hierarchical_documents 
+          ADD COLUMN source_document_ids INTEGER[] DEFAULT '{}';
+      END IF;
+      
+      -- Create index on document_type if it doesn't exist
+      IF NOT EXISTS (SELECT 1 FROM pg_indexes 
+                     WHERE tablename = 'hierarchical_documents' 
+                     AND indexname = 'idx_document_type') THEN
+          CREATE INDEX idx_document_type ON hierarchical_documents(document_type);
+      END IF;
+    END $$;
+  `;
+  
+  await pool.query(migrationSQL);
 }
 
 async function readTextFilesFromDirectory(
@@ -650,15 +1036,16 @@ async function indexDocuments(
     
     const result = await client.query(
       `INSERT INTO hierarchical_documents 
-       (content, batch_id, hierarchy_level, token_count, metadata) 
-       VALUES ($1, $2, $3, $4, $5) 
+       (content, batch_id, hierarchy_level, token_count, metadata, document_type) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING id`,
       [
         doc.content,
         config.batchId,
         0, // Hierarchy level 0 for source documents
         tokenCount,
-        JSON.stringify({ filename: doc.name })
+        JSON.stringify({ filename: doc.name }),
+        'source' // Mark as source document
       ]
     );
     
@@ -711,23 +1098,35 @@ async function performHierarchicalSummarization(
     
     // Check for convergence - are we making progress?
     if (currentLevel > 0 && documents.length >= previousDocumentCount) {
-      // Instead of immediately failing, check if the total content size is decreasing
-      const currentTotalTokens = documents.reduce((sum, doc) => 
-        sum + estimateTokenCount(doc.summary || doc.content), 0
-      );
-      
-      // If we're not reducing document count, we should at least be reducing total tokens
-      if (currentLevel > 1 && currentTotalTokens >= previousTotalTokens * 0.9) {
-        throw new Error(
-          `Summarization not converging: Level ${currentLevel-1} had ${previousDocumentCount} documents (${previousTotalTokens} tokens), ` +
-          `Level ${currentLevel} has ${documents.length} documents (${currentTotalTokens} tokens). ` +
-          `This indicates summaries are not reducing content size. ` +
-          `Try: 1) Reducing AI output tokens (current: ~50), 2) Increasing batch size (current: ${config.batchSize}), ` +
-          `or 3) Using more aggressive summarization prompts.`
+      // Special handling for Level 0 → Level 1 transition
+      // Level 1 contains batches/chunks, not summaries, so document count may stay same or decrease
+      if (currentLevel === 1) {
+        // Level 1 should have fewer or equal documents than Level 0 (batching occurred)
+        console.log(
+          `[HS Info] Level 0 → Level 1: ${previousDocumentCount} source documents → ${documents.length} batches/chunks`
         );
+        // No error needed - Level 1 is just reorganized batches
       }
       
-      console.log(`[HS Progress] Level ${currentLevel}: Same document count but tokens reduced from ${previousTotalTokens} to ${currentTotalTokens}`);
+      // For Level 2+, check if summarization is working (reducing content)
+      if (currentLevel >= 2) {
+        const currentTotalTokens = documents.reduce((sum, doc) => 
+          sum + estimateTokenCount(doc.summary || doc.content), 0
+        );
+        
+        // Level 2+: Summaries should be reducing document count OR token count
+        if (documents.length >= previousDocumentCount && currentTotalTokens >= previousTotalTokens * 0.9) {
+          throw new Error(
+            `Summarization not converging: Level ${currentLevel-1} had ${previousDocumentCount} documents (${previousTotalTokens} tokens), ` +
+            `Level ${currentLevel} has ${documents.length} documents (${currentTotalTokens} tokens). ` +
+            `This indicates summaries are not reducing content size. ` +
+            `Try: 1) Reducing AI output tokens (current: ~50), 2) Increasing batch size (current: ${config.batchSize}), ` +
+            `or 3) Using more aggressive summarization prompts.`
+          );
+        }
+        
+        console.log(`[HS Progress] Level ${currentLevel}: ${previousDocumentCount} → ${documents.length} documents, ${previousTotalTokens} → ${currentTotalTokens} tokens`);
+      }
     }
     
     previousDocumentCount = documents.length;
@@ -805,6 +1204,20 @@ async function performHierarchicalSummarization(
   throw new Error('Summarization did not converge to single document');
 }
 
+/**
+ * Process documents at the current level to create the next level in the hierarchy.
+ * 
+ * HIERARCHY LOGIC:
+ * - Level 0: Source documents (original content)
+ * - Level 1: Batches/chunks of Level 0 content (no summaries yet)
+ * - Level 2: First summaries of Level 1 batches/chunks
+ * - Level 3+: Higher-level summaries
+ * 
+ * This function handles the transformation between levels:
+ * - Level 0 → Level 1: Creates batches (combining small docs) or chunks (splitting large docs)
+ * - Level 1 → Level 2: Creates first summaries from batches/chunks
+ * - Level 2+ → Next: Standard summarization with convergence
+ */
 async function processLevel(
   client: any,
   documents: HierarchicalDocument[],
@@ -812,7 +1225,7 @@ async function processLevel(
   nextLevel: number,
   executeFunctions: IExecuteFunctions
 ): Promise<HierarchicalDocument[]> {
-  const summaries: HierarchicalDocument[] = [];
+  const createdDocuments: HierarchicalDocument[] = [];
   
   // Calculate available tokens for content after accounting for prompts
   const promptTokens = estimateTokenCount(
@@ -824,137 +1237,257 @@ async function processLevel(
     throw new Error(`Batch size ${config.batchSize} too small for prompts. Increase batch size or reduce prompt length.`);
   }
   
-  // Group documents into batches based on token count
-  const batches: HierarchicalDocument[][] = [];
-  let currentBatch: HierarchicalDocument[] = [];
-  let currentBatchTokens = 0;
+  // CRITICAL LOGIC: Handle Level 0 → Level 1 transformation differently
+  // Level 0 → 1: Create batches/chunks (content only, no summaries)
+  // Level 1 → 2+: Create summaries
+  const isCreatingBatches = documents[0]?.hierarchy_level === 0;
   
-  for (const doc of documents) {
-    const docContent = doc.summary || doc.content;
-    const docTokens = estimateTokenCount(docContent);
+  if (isCreatingBatches) {
+    // ========== LEVEL 0 → LEVEL 1: Create batches/chunks ==========
+    console.log(`[HS] Creating Level 1 batches/chunks from ${documents.length} Level 0 documents`);
     
-    // If single document exceeds budget, process it separately
-    if (docTokens > contentTokenBudget) {
-      // Flush current batch if it has documents
-      if (currentBatch.length > 0) {
+    // Initialize batch tracking variables
+    let currentBatch: HierarchicalDocument[] = [];
+    let currentBatchTokens = 0;
+    
+    for (const doc of documents) {
+      const docTokens = estimateTokenCount(doc.content);
+      
+      if (docTokens > contentTokenBudget) {
+        // Large document: Create chunks at Level 1
+        console.log(`[HS] Document "${doc.metadata?.filename}" (${docTokens} tokens) exceeds batch size. Creating chunks.`);
+        
+        const chunks = await chunkDocument(doc, config);
+        
+        // Save each chunk as a Level 1 document
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
+          const chunkDoc = await client.query(
+            `INSERT INTO hierarchical_documents 
+             (content, batch_id, hierarchy_level, parent_id, token_count, metadata, document_type, chunk_index) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+             RETURNING *`,
+            [
+              chunk.content,
+              config.batchId,
+              1, // Level 1: chunks
+              doc.id,
+              chunk.tokenCount,
+              JSON.stringify({
+                ...doc.metadata,
+                chunkOf: doc.metadata?.filename || 'unknown',
+                chunkIndex: i,
+                totalChunks: chunks.length
+              }),
+              'chunk',
+              i
+            ]
+          );
+          
+          createdDocuments.push(chunkDoc.rows[0]);
+        }
+      } else {
+        // Small document: Will be batched with others
+        // For now, just track it for batching
+        if (currentBatch.length === 0) {
+          currentBatchTokens = 0;
+        }
+        
+        // Check if adding this document would exceed the batch size
+        if (currentBatchTokens + docTokens > contentTokenBudget && currentBatch.length > 0) {
+          // Save current batch as Level 1 document
+          await saveBatchAsLevel1(client, currentBatch, config, createdDocuments);
+          currentBatch = [];
+          currentBatchTokens = 0;
+        }
+        
+        currentBatch.push(doc);
+        currentBatchTokens += docTokens;
+      }
+    }
+    
+    // Save any remaining batch
+    if (currentBatch.length > 0) {
+      await saveBatchAsLevel1(client, currentBatch, config, createdDocuments);
+    }
+    
+    return createdDocuments;
+    
+  } else {
+    // ========== LEVEL 1+ → NEXT LEVEL: Create summaries ==========
+    console.log(`[HS] Creating Level ${nextLevel} summaries from ${documents.length} Level ${documents[0]?.hierarchy_level} documents`);
+    
+    // Standard batching logic for summarization
+    const batches: HierarchicalDocument[][] = [];
+    let currentBatch: HierarchicalDocument[] = [];
+    let currentBatchTokens = 0;
+    
+    for (const doc of documents) {
+      const docContent = doc.summary || doc.content;
+      const docTokens = estimateTokenCount(docContent);
+      
+      // If single document exceeds budget, process it separately
+      if (docTokens > contentTokenBudget) {
+        // Flush current batch if it has documents
+        if (currentBatch.length > 0) {
+          batches.push(currentBatch);
+          currentBatch = [];
+          currentBatchTokens = 0;
+        }
+        
+        // For Level 1+ documents, never chunk - process as single batch
+        console.log(`Warning: Document at level ${doc.hierarchy_level} exceeds batch size (${docTokens} tokens). Processing alone.`);
+        
+        if (doc.hierarchy_level >= 2 && docTokens > contentTokenBudget * 0.8) {
+          console.warn(
+            `[HS Critical] Level ${doc.hierarchy_level} document is ${docTokens} tokens, ` +
+            `which is ${Math.round(docTokens/contentTokenBudget*100)}% of available batch budget. ` +
+            `This suggests summarization is not condensing content effectively.`
+          );
+        }
+        
+        batches.push([doc]);
+        continue;
+      }
+      
+      // Check if adding this document would exceed the batch size
+      if (currentBatchTokens + docTokens > contentTokenBudget && currentBatch.length > 0) {
+        // Flush current batch
         batches.push(currentBatch);
         currentBatch = [];
         currentBatchTokens = 0;
       }
       
-      // IMPORTANT: Don't chunk summaries at higher levels - this prevents infinite recursion
-      // Only chunk original content at level 0
-      if (doc.hierarchy_level === 0 && !doc.summary) {
-        // Process oversized document with chunking
-        const chunks = await chunkDocument(doc, config);
-        const chunkSummaries: string[] = [];
+      // Add document to current batch
+      currentBatch.push(doc);
+      currentBatchTokens += docTokens;
+    }
+    
+    // Flush remaining batch
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch);
+    }
+  
+    // Process each batch to create summaries
+    for (const batch of batches) {
+      if (batch.length === 1) {
+        // Single document - summarize directly
+        const doc = batch[0];
+        const docContent = doc.summary || doc.content;
+        const chunk: DocumentChunk = {
+          content: docContent,
+          index: 0,
+          tokenCount: estimateTokenCount(docContent),
+          metadata: doc.metadata
+        };
         
-        for (const chunk of chunks) {
-          // Don't pass previousSummary for document chunking - each chunk should be independent
-          // This prevents prompt size from growing with each chunk, which was causing excessive chunking
-          const summary = await summarizeChunk(chunk, null, config, executeFunctions);
-          chunkSummaries.push(summary);
-        }
-        
-        const combinedSummary = chunkSummaries.join(' ');
+        const summary = await summarizeChunk(chunk, null, config, executeFunctions);
         const newDoc = await createSummaryDocument(
           client,
-          combinedSummary,
+          summary,
           doc.id!,
           config,
           nextLevel
         );
         
-        summaries.push(newDoc);
+        createdDocuments.push(newDoc);
       } else {
-        // For summaries (level > 0), process as a single batch even if oversized
-        // This prevents infinite hierarchy growth
-        console.log(`Warning: Summary at level ${doc.hierarchy_level} exceeds batch size (${docTokens} tokens). Processing without chunking to prevent infinite recursion.`);
-        batches.push([doc]);
+        // Multiple documents - combine and summarize
+        const combinedContent = batch.map(doc => {
+          const content = doc.summary || doc.content;
+          const source = doc.metadata?.source || doc.metadata?.filename || 'unknown';
+          return `[Document: ${source}]\n${content}`;
+        }).join('\n\n');
+        
+        // Create metadata that references all parent documents
+        const combinedMetadata = {
+          sources: batch.map(doc => doc.metadata?.source || doc.metadata?.filename || 'unknown'),
+          parentIds: batch.map(doc => doc.id),
+          documentCount: batch.length
+        };
+        
+        const chunk: DocumentChunk = {
+          content: combinedContent,
+          index: 0,
+          tokenCount: estimateTokenCount(combinedContent),
+          metadata: combinedMetadata
+        };
+        
+        const summary = await summarizeChunk(chunk, null, config, executeFunctions);
+        
+        // Create summary document with multiple parent references
+        const newDoc = await createBatchSummaryDocument(
+          client,
+          summary,
+          batch.map(doc => doc.id!),
+          config,
+          nextLevel,
+          combinedMetadata
+        );
+        
+        createdDocuments.push(newDoc);
       }
-      continue;
     }
     
-    // Check if adding this document would exceed the batch size
-    if (currentBatchTokens + docTokens > contentTokenBudget && currentBatch.length > 0) {
-      // Flush current batch
-      batches.push(currentBatch);
-      currentBatch = [];
-      currentBatchTokens = 0;
-    }
-    
-    // Add document to current batch
-    currentBatch.push(doc);
-    currentBatchTokens += docTokens;
+    return createdDocuments;
+  }
+}
+
+/**
+ * Helper function to save a batch of Level 0 documents as a single Level 1 batch document.
+ * This preserves the exact content that will be summarized for traceability.
+ */
+async function saveBatchAsLevel1(
+  client: any,
+  batch: HierarchicalDocument[],
+  config: ProcessingConfig,
+  createdDocuments: HierarchicalDocument[]
+): Promise<void> {
+  // Combine content from all documents in the batch
+  const combinedContent = batch.map(doc => {
+    const filename = doc.metadata?.filename || 'unknown';
+    return `[Document: ${filename}]\n${doc.content}`;
+  }).join('\n\n');
+  
+  const totalTokens = batch.reduce((sum, doc) => sum + (doc.token_count || 0), 0);
+  
+  // Create metadata that references all source documents
+  const batchMetadata = {
+    batchOf: batch.map(doc => doc.metadata?.filename || 'unknown'),
+    sourceDocumentIds: batch.map(doc => doc.id),
+    documentCount: batch.length,
+    totalTokens
+  };
+  
+  const batchDoc = await client.query(
+    `INSERT INTO hierarchical_documents 
+     (content, batch_id, hierarchy_level, token_count, metadata, document_type, source_document_ids) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7) 
+     RETURNING *`,
+    [
+      combinedContent,
+      config.batchId,
+      1, // Level 1: batch
+      totalTokens,
+      JSON.stringify(batchMetadata),
+      'batch',
+      batch.map(doc => doc.id)
+    ]
+  );
+  
+  // Update parent documents to reference this batch
+  for (const sourceDoc of batch) {
+    await client.query(
+      `UPDATE hierarchical_documents 
+       SET child_ids = array_append(child_ids, $1) 
+       WHERE id = $2`,
+      [batchDoc.rows[0].id, sourceDoc.id]
+    );
   }
   
-  // Flush remaining batch
-  if (currentBatch.length > 0) {
-    batches.push(currentBatch);
-  }
+  createdDocuments.push(batchDoc.rows[0]);
   
-  // Process each batch
-  for (const batch of batches) {
-    if (batch.length === 1) {
-      // Single document in batch - summarize directly
-      const doc = batch[0];
-      const docContent = doc.summary || doc.content;
-      const chunk: DocumentChunk = {
-        content: docContent,
-        index: 0,
-        tokenCount: estimateTokenCount(docContent),
-        metadata: doc.metadata
-      };
-      
-      const summary = await summarizeChunk(chunk, null, config, executeFunctions);
-      const newDoc = await createSummaryDocument(
-        client,
-        summary,
-        doc.id!,
-        config,
-        nextLevel
-      );
-      
-      summaries.push(newDoc);
-    } else {
-      // Multiple documents in batch - combine and summarize
-      const combinedContent = batch.map(doc => {
-        const content = doc.summary || doc.content;
-        const source = doc.metadata?.source || 'unknown';
-        return `[Document: ${source}]\n${content}`;
-      }).join('\n\n');
-      
-      // Create metadata that references all parent documents
-      const combinedMetadata = {
-        sources: batch.map(doc => doc.metadata?.source || 'unknown'),
-        parentIds: batch.map(doc => doc.id),
-        documentCount: batch.length
-      };
-      
-      const chunk: DocumentChunk = {
-        content: combinedContent,
-        index: 0,
-        tokenCount: estimateTokenCount(combinedContent),
-        metadata: combinedMetadata
-      };
-      
-      const summary = await summarizeChunk(chunk, null, config, executeFunctions);
-      
-      // Create summary document with multiple parent references
-      const newDoc = await createBatchSummaryDocument(
-        client,
-        summary,
-        batch.map(doc => doc.id!),
-        config,
-        nextLevel,
-        combinedMetadata
-      );
-      
-      summaries.push(newDoc);
-    }
-  }
-  
-  return summaries;
+  console.log(`[HS] Created Level 1 batch from ${batch.length} documents (${totalTokens} tokens total)`);
 }
 
 async function chunkDocument(
@@ -1085,7 +1618,7 @@ function splitIntoSentences(text: string): string[] {
   return sentences;
 }
 
-// IMPROVED: Enhanced AI response parsing for multiple model formats
+// IMPROVED: Enhanced AI response parsing for multiple model formats with resilience
 async function summarizeChunk(
   chunk: DocumentChunk,
   previousSummary: string | null,
@@ -1105,26 +1638,49 @@ async function summarizeChunk(
   }
   userContent += `<c>${chunk.content}</c>`;
   
-  try {
+  // Get resilience configuration with defaults
+  const resilience = config.resilience || {
+    retryEnabled: true,
+    retryConfig: {
+      maxRetries: 3,
+      initialDelay: 1000,
+      maxDelay: 30000,
+      backoffMultiplier: 2,
+      jitterFactor: 0.1
+    },
+    requestTimeout: 60000,
+    fallbackEnabled: true,
+    rateLimit: 30
+  };
+  
+  // Logger function for retry attempts
+  const logger = (message: string) => {
+    console.log(`[HS ${chunk.index}] ${message}`);
+  };
+  
+  // Initialize circuit breaker if enabled and not already created
+  if (resilience.circuitBreakerEnabled && !globalCircuitBreaker) {
+    globalCircuitBreaker = new CircuitBreaker({
+      failureThreshold: resilience.circuitBreakerThreshold || 5,
+      resetTimeout: resilience.circuitBreakerResetTimeout || 60000,
+      halfOpenRequests: 3
+    });
+    logger('Circuit breaker initialized');
+  }
+  
+  // Initialize rate limiter if not already created
+  if (!globalRateLimiter) {
+    globalRateLimiter = new RateLimiter(resilience.rateLimit);
+    logger(`Rate limiter initialized: ${resilience.rateLimit} requests/minute`);
+  }
+  
+  // Main operation to be retried
+  const operation = async () => {
     // Get the AI language model connection
     const languageModel = await executeFunctions.getInputConnectionData(
       NodeConnectionType.AiLanguageModel,
       0
     );
-
-    // Temporary diagnostic logging
-    if (!languageModel) {
-      // Log diagnostic information
-      const node = executeFunctions.getNode();
-      const inputData = executeFunctions.getInputData();
-      console.error('[DIAGNOSTIC] AI Model connection failed:', {
-        nodeType: node.type,
-        nodeName: node.name,
-        inputDataLength: inputData.length,
-        connectionType: NodeConnectionType.AiLanguageModel,
-        connectionTypeValue: NodeConnectionType.AiLanguageModel.toString()
-      });
-    }
 
     if (!languageModel || typeof (languageModel as any).invoke !== 'function') {
       throw new NodeOperationError(
@@ -1133,7 +1689,7 @@ async function summarizeChunk(
       );
     }
 
-    // Call the language model with timeout protection
+    // Call the language model with configurable timeout
     const response = await Promise.race([
       (languageModel as any).invoke({
         messages: [
@@ -1142,15 +1698,15 @@ async function summarizeChunk(
         ],
         options: {
           temperature: 0.3,
-          maxTokensToSample: 50,  // Reduced from 150 to enforce shorter summaries (1-2 sentences)
+          maxTokensToSample: 50,
         }
       }),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('AI request timeout after 60 seconds')), 60000)
+        setTimeout(() => reject(new Error(`AI request timeout after ${resilience.requestTimeout}ms`)), resilience.requestTimeout)
       )
     ]);
 
-    // IMPROVED: Extract the summary from response with better format handling
+    // Extract the summary from response
     const summary = parseAIResponse(response);
     
     if (!summary) {
@@ -1159,40 +1715,78 @@ async function summarizeChunk(
 
     const trimmedSummary = summary.trim();
     
-    // Check if the summary is actually summarizing (should be significantly shorter)
+    // Validate summary quality
     const originalLength = chunk.content.length;
     const summaryLength = trimmedSummary.length;
     
     if (summaryLength >= originalLength * 0.8) {
       throw new Error(
         `Summary is not reducing content size sufficiently. ` +
-        `Original: ${originalLength} chars, Summary: ${summaryLength} chars (${Math.round(summaryLength/originalLength*100)}%). ` +
-        `The AI model is not summarizing effectively. ` +
-        `Try: 1) More explicit summarization prompts, 2) Reducing AI output token limit, or 3) Using a different AI model.`
+        `Original: ${originalLength} chars, Summary: ${summaryLength} chars (${Math.round(summaryLength/originalLength*100)}%). `
       );
     }
     
-    // Also check token count
+    // Check token reduction
     const originalTokens = chunk.tokenCount;
     const summaryTokens = estimateTokenCount(trimmedSummary);
     
     if (summaryTokens >= originalTokens * 0.5) {
-      console.warn(
-        `[HS Warning] Summary token reduction is minimal: ${originalTokens} → ${summaryTokens} tokens (${Math.round(summaryTokens/originalTokens*100)}%)`
-      );
+      logger(`Warning: Minimal token reduction: ${originalTokens} → ${summaryTokens} tokens`);
     }
 
     return trimmedSummary;
+  };
+  
+  try {
+    // Wrap with rate limiter, circuit breaker, and retry logic
+    const executeOperation = async () => {
+      // First, apply rate limiting
+      return await globalRateLimiter!.execute(async () => {
+        // Log queue status if there's a queue
+        const queueLength = globalRateLimiter!.getQueueLength();
+        if (queueLength > 0) {
+          logger(`Rate limiter queue: ${queueLength} requests waiting`);
+        }
+        
+        // Then apply circuit breaker if enabled
+        if (resilience.circuitBreakerEnabled && globalCircuitBreaker) {
+          return await globalCircuitBreaker.execute(async () => {
+            // Finally, apply retry logic if enabled
+            if (resilience.retryEnabled) {
+              return await retryWithBackoff(operation, resilience.retryConfig, logger);
+            } else {
+              return await operation();
+            }
+          });
+        } else {
+          // No circuit breaker, just use retry logic
+          if (resilience.retryEnabled) {
+            return await retryWithBackoff(operation, resilience.retryConfig, logger);
+          } else {
+            return await operation();
+          }
+        }
+      });
+    };
     
+    return await executeOperation();
   } catch (error) {
-    // If AI model fails, provide a fallback summary
     const errorMessage = error.message || 'Unknown error';
+    logger(`Error: ${errorMessage}`);
     
-    // Extract key sentences from the chunk as fallback
-    const sentences = splitIntoSentences(chunk.content);
-    const keyContent = sentences.slice(0, 2).join(' ').trim() || chunk.content.substring(0, 200);
+    // Check if circuit breaker is open
+    if (errorMessage.includes('Circuit breaker is OPEN')) {
+      logger(`Circuit breaker state: ${globalCircuitBreaker?.getState()}`);
+    }
     
-    return `[AI Error: ${errorMessage}] Key content from chunk ${chunk.index}: ${keyContent}...`;
+    // Use fallback if enabled
+    if (resilience.fallbackEnabled) {
+      logger('Using fallback summary generation');
+      return generateFallbackSummary(chunk);
+    }
+    
+    // Re-throw if no fallback
+    throw error;
   }
 }
 
@@ -1281,8 +1875,8 @@ async function createSummaryDocument(
   // Insert the summary document
   const result = await client.query(
     `INSERT INTO hierarchical_documents 
-     (content, summary, batch_id, hierarchy_level, parent_id, token_count) 
-     VALUES ($1, $2, $3, $4, $5, $6) 
+     (content, summary, batch_id, hierarchy_level, parent_id, token_count, document_type) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7) 
      RETURNING *`,
     [
       '', // Empty content since this is a summary
@@ -1290,7 +1884,8 @@ async function createSummaryDocument(
       config.batchId,
       hierarchyLevel,
       parentId,
-      estimateTokenCount(summary)
+      estimateTokenCount(summary),
+      'summary' // Mark as summary document
     ]
   );
   
@@ -1318,8 +1913,8 @@ async function createBatchSummaryDocument(
   // Insert the summary document with metadata
   const result = await client.query(
     `INSERT INTO hierarchical_documents 
-     (content, summary, batch_id, hierarchy_level, parent_id, token_count, metadata) 
-     VALUES ($1, $2, $3, $4, $5, $6, $7) 
+     (content, summary, batch_id, hierarchy_level, parent_id, token_count, metadata, document_type, source_document_ids) 
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
      RETURNING *`,
     [
       '', // Empty content since this is a summary
@@ -1328,7 +1923,9 @@ async function createBatchSummaryDocument(
       hierarchyLevel,
       parentIds[0], // Primary parent for compatibility
       estimateTokenCount(summary),
-      JSON.stringify(metadata)
+      JSON.stringify(metadata),
+      'summary', // Mark as summary document
+      parentIds // Store all parent IDs for full traceability
     ]
   );
   
