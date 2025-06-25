@@ -94,16 +94,13 @@ export class yakeKeywordExtraction implements INodeType {
 
         // spawn a child process to run the python script with all the user inputs
         const pythonProcess = spawnSync('python', [script_path, input_text.toString(), language, maxKeywords.toString(), ngramSize.toString(), deduplicationThreshold.toString()]);
-       
-
-        // Capture stdout (the keywords that the script returns)
-        const stringDecoder = new TextDecoder('utf-8');
-
+      
         
-
+        // Capture stdout (the keywords that the script returns) and then format it into utf-8 text
+        const stringDecoder = new TextDecoder('utf-8');
         raw_keywords = stringDecoder.decode(pythonProcess.stdout)
 
-        // remove the last comma from the output so you don't get left with an empty array value
+        // remove the last character (a comma) from the output so you don't get left with an empty array value
         raw_keywords = raw_keywords.slice(0,-1);
 
         // remove all newline characters
@@ -144,6 +141,7 @@ export class yakeKeywordExtraction implements INodeType {
                 });
 
 
+      // throw an error and stop if something goes wrong
       } catch (error) {
         if (error instanceof Error) {
           throw new Error(`Failed to process document: ${error.message}`);
