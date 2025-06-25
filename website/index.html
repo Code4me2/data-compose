@@ -76,6 +76,18 @@
                 <h2 class="section-title">AI Chat Interface</h2>
                 <p class="section-subtitle">Chat with DeepSeek R1 through n8n workflows</p>
                 
+                <!-- Chat Mode Toggle -->
+                <div class="chat-mode-toggle">
+                    <label class="toggle-label">
+                        <input type="radio" name="chat-mode" value="local" checked>
+                        <span class="mode-option">Local</span>
+                    </label>
+                    <label class="toggle-label">
+                        <input type="radio" name="chat-mode" value="public">
+                        <span class="mode-option">Public</span>
+                    </label>
+                </div>
+                
                 <div class="chat-container">
                     <div id="chat-messages" class="chat-messages">
                         <div class="message bot">

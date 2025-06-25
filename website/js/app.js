@@ -167,13 +167,17 @@ class DataComposeApp {
         try {
             this.updateChatStatus('Sending...');
             
+            // Get the selected chat mode
+            const chatMode = document.querySelector('input[name="chat-mode"]:checked').value;
+            const action = chatMode === 'local' ? 'local_chat' : 'public_chat';
+            
             const response = await fetch(this.webhookUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    action: 'chat',
+                    action: action,
                     message: message,
                     timestamp: new Date().toISOString()
                 })

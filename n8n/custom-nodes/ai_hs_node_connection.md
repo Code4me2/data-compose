@@ -1,100 +1,242 @@
-I'll search for the current n8n AI node protocol requirements to help you resolve this integration issue.Based on my research, here's the specific protocol and requirements for custom nodes to communicate with n8n's default AI nodes:
+# n8n AI Model Connection Guide
 
-## Key Requirements for Custom Node AI Tool Integration
+This document describes how to create custom nodes that integrate with n8n's standard AI model connection system, allowing nodes to either provide AI capabilities or consume them through a unified interface.
 
-### 1. **Enable Tool Usage Flag**
-Your custom node must include the property `usableAsTool: true` in the node definition. This flag tells n8n that the node can be used as a tool by AI agents.
+## Overview
 
-### 2. **Environment Variable**
-You must set the environment variable `N8N_COMMUNITY_PACKAGES_ALLOW_TOOL_USAGE=true` to allow community nodes to be used as tools by AI agents.
+n8n provides a standardized way for nodes to connect with AI language models through the `NodeConnectionType.AiLanguageModel` connection type. This enables:
 
-### 3. **Data Structure Format**
-The critical protocol requirement is that your custom node must follow n8n's standard data structure:
+- AI provider nodes (like OpenAI, Anthropic) to expose their models
+- Consumer nodes to use any connected AI model without provider-specific code
+- Consistent interface across different AI providers
 
-Data sent from one node to another is sent as an array of JSON objects. The elements in this collection are called items. n8n expects you to wrap each object in an array in another object, with the key json.
+## For AI Provider Nodes
 
-The expected format is:
-```javascript
-[
-  {
-    json: {
-      // Your actual data here
-      key1: "value1",
-      key2: "value2"
-    }
-  },
-  {
-    json: {
-      // Another item
-      key1: "value3",
-      key2: "value4"
-    }
-  }
-]
-```
+Nodes that provide AI model capabilities must implement the `supplyData` method:
 
-### 4. **Execute Function Return Type**
-Your custom node's `execute` function must return data in the `INodeExecutionData[][]` format. The execute function should return `Promise<INodeExecutionData[][]>`.
-
-### 5. **Tool Description**
-Provide a clear description that tells the agent when to use this tool. This helps the AI agent understand the tool's purpose and capabilities.
-
-## Example Implementation Pattern
-
-Based on the research, here's a basic structure for a custom node that works as an AI tool:
+### Basic Implementation
 
 ```typescript
-import { IExecuteFunctions } from 'n8n-core';
-import { 
-  INodeExecutionData, 
-  INodeType, 
-  INodeTypeDescription 
-} from 'n8n-workflow';
+import { ISupplyDataFunctions, SupplyData } from 'n8n-workflow';
 
-export class MyCustomTool implements INodeType {
-  description: INodeTypeDescription = {
-    displayName: 'My Custom Tool',
-    name: 'myCustomTool',
-    group: ['transform'],
-    version: 1,
-    description: 'Clear description for AI agent',
-    usableAsTool: true, // Critical flag
-    defaults: {
-      name: 'My Custom Tool',
-    },
-    inputs: ['main'],
-    outputs: ['main'],
-    // ... other properties
-  };
-
-  async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-    const items = this.getInputData();
-    const returnData: INodeExecutionData[] = [];
-
-    // Process each item
-    for (let i = 0; i < items.length; i++) {
-      // Your processing logic here
-      const newItem = {
-        json: {
-          // Your output data
-          result: 'processed data'
+async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
+  return {
+    invoke: async (params: {
+      messages: Array<{role: string, content: string}>,
+      options?: {
+        temperature?: number,
+        maxTokensToSample?: number,
+        stopSequences?: string[],
+        [key: string]: any
+      }
+    }) => {
+      // Implement AI model invocation
+      const response = await callYourAIModel(params);
+      
+      // Return standardized response
+      return {
+        text: response.content,
+        usage: {
+          inputTokens: response.usage?.prompt_tokens,
+          outputTokens: response.usage?.completion_tokens,
         }
       };
-      returnData.push(newItem);
     }
-
-    // Return in the expected format
-    return this.prepareOutputData(returnData);
-  }
+  };
 }
 ```
 
-## Troubleshooting Tips
+### Output Configuration
 
-1. From version 0.166.0 on, when using the Function node or Code node, n8n automatically adds the json key if it's missing, but custom nodes must still ensure proper formatting.
+```typescript
+outputs: [
+  {
+    displayName: 'Model',
+    name: 'model',
+    type: NodeConnectionType.AiLanguageModel,
+  }
+],
+```
 
-2. If you see errors like "Unrecognized node type", ensure your node is properly registered and the `usableAsTool` flag is set correctly.
+### LangChain Compatibility (Optional)
 
-3. The Tools Agent implements Langchain's tool calling interface, so your node should be compatible with this standard.
+For compatibility with LangChain-based nodes:
 
-The key issue preventing your custom nodes from working with default AI nodes is likely the missing `usableAsTool: true` flag, the environment variable not being set, or the output data not following the exact `INodeExecutionData` structure that n8n expects.
+```typescript
+async supplyData(this: ISupplyDataFunctions): Promise<SupplyData> {
+  const model = {
+    // Your model implementation
+    invoke: async (params) => { /* ... */ }
+  };
+  
+  return {
+    response: model,  // For LangChain compatibility
+    invoke: model.invoke  // For standard n8n compatibility
+  };
+}
+```
+
+## For AI Consumer Nodes
+
+Nodes that use AI models should define an AI model input:
+
+### Input Configuration
+
+```typescript
+inputs: [
+  {
+    displayName: 'Model',
+    name: 'model',
+    type: NodeConnectionType.AiLanguageModel,
+    required: true,
+    description: 'The language model to use for processing',
+  }
+],
+```
+
+### Using the Connected Model
+
+```typescript
+async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
+  // Get the connected AI model
+  const languageModel = await this.getInputConnectionData(
+    NodeConnectionType.AiLanguageModel,
+    0
+  ) as { invoke: Function };
+
+  // Validate the model
+  if (!languageModel || typeof languageModel.invoke !== 'function') {
+    throw new NodeOperationError(
+      this.getNode(),
+      'No AI language model connected. Please connect an AI model node.'
+    );
+  }
+
+  // Use the model
+  const response = await languageModel.invoke({
+    messages: [
+      { role: 'system', content: 'You are a helpful assistant.' },
+      { role: 'user', content: 'Process this text...' }
+    ],
+    options: {
+      temperature: 0.7,
+      maxTokensToSample: 1000
+    }
+  });
+
+  // Handle the response
+  const text = response.text || response.content || response.choices?.[0]?.message?.content;
+  
+  return this.prepareOutputData([{ json: { result: text } }]);
+}
+```
+
+## Response Format Handling
+
+Different AI providers return responses in various formats. Handle them flexibly:
+
+```typescript
+function parseAIResponse(response: any): string {
+  // Handle different response formats
+  if (typeof response === 'string') return response;
+  if (response.text) return response.text;
+  if (response.content) return response.content;
+  if (response.choices?.[0]?.message?.content) {
+    return response.choices[0].message.content;
+  }
+  if (response.generations?.[0]?.[0]?.text) {
+    return response.generations[0][0].text;
+  }
+  
+  throw new Error('Unable to parse AI response');
+}
+```
+
+## Error Handling
+
+Use proper error handling with clear messages:
+
+```typescript
+try {
+  const response = await languageModel.invoke(params);
+  // Process response
+} catch (error) {
+  if (this.continueOnFail()) {
+    return this.prepareOutputData([{
+      json: { 
+        error: error.message,
+        result: 'Failed to process with AI model'
+      },
+      pairedItem: { item: i }
+    }]);
+  }
+  
+  throw new NodeOperationError(
+    this.getNode(),
+    `AI model error: ${error.message}`,
+    { itemIndex: i }
+  );
+}
+```
+
+## Testing
+
+### Mock AI Model for Testing
+
+```typescript
+const mockLanguageModel = {
+  invoke: async (params) => ({
+    text: `Mocked response for: ${params.messages.slice(-1)[0].content}`,
+    usage: { inputTokens: 10, outputTokens: 20 }
+  })
+};
+```
+
+### Unit Test Example
+
+```typescript
+it('should process text with AI model', async () => {
+  const executeFunctions = createMockExecuteFunctions({
+    inputConnectionData: mockLanguageModel
+  });
+  
+  const result = await node.execute.call(executeFunctions);
+  expect(result[0][0].json.result).toBe('Mocked response for: test input');
+});
+```
+
+## Best Practices
+
+1. **Always validate** the AI model connection before use
+2. **Handle multiple response formats** from different providers
+3. **Provide clear error messages** when no model is connected
+4. **Support both standalone and AI-connected modes** when appropriate
+5. **Use TypeScript** for better type safety
+6. **Include usage statistics** in responses when available
+7. **Support streaming responses** for real-time output (if applicable)
+
+## Common Issues
+
+### Issue: "No AI language model connected"
+- Ensure an AI model node is connected to the input
+- Verify the input type is `NodeConnectionType.AiLanguageModel`
+
+### Issue: Response parsing errors
+- Different AI providers return different formats
+- Use flexible parsing to handle various response structures
+
+### Issue: TypeScript errors
+- Import types from `n8n-workflow` package
+- Ensure your `tsconfig.json` includes n8n type definitions
+
+## Example Implementations
+
+- **MinimalAIModel.node.ts**: Basic AI provider implementation
+- **BitNet.node.ts**: Production example with LangChain compatibility
+- **HierarchicalSummarization.node.ts**: Consumer node using AI models
+
+## Additional Resources
+
+- [n8n AI Nodes Documentation](https://docs.n8n.io/integrations/ai/)
+- [Creating Custom Nodes](https://docs.n8n.io/integrations/creating-nodes/)
+- [NodeConnectionType Reference](https://docs.n8n.io/reference/typescript-api/)
