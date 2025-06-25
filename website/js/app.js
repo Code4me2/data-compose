@@ -381,13 +381,17 @@ async function startHierarchicalSummarization() {
         // Build the full path as expected by the container
         const directoryPath = `/files/uploads/${directoryName}`;
         
+        // Get the selected hierarchical summarization mode
+        const hsMode = document.querySelector('input[name="hs-mode"]:checked').value;
+        const action = hsMode === 'local' ? 'hs_local' : 'hs_public';
+        
         const response = await fetch(CONFIG.WEBHOOK_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                action: 'hierarchical_summarization',
+                action: action,
                 directoryPath: directoryPath,
                 timestamp: new Date().toISOString()
             })
