@@ -13,8 +13,8 @@ A sophisticated web application that integrates workflow automation (n8n) with A
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/data_compose.git
-cd data_compose
+git clone https://github.com/Code4Me2/data-compose.git
+cd data-compose
 ```
 
 ### 2. Configure environment variables
@@ -171,7 +171,9 @@ data_compose/
     │   ├── n8n-nodes-deepseek/     # DeepSeek AI integration
     │   ├── n8n-nodes-haystack/     # Document search integration (7 operations)
     │   ├── n8n-nodes-hierarchicalSummarization/  # PostgreSQL document processing
-    │   └── n8n-nodes-bitnet/       # BitNet LLM inference
+    │   ├── n8n-nodes-bitnet/       # BitNet LLM inference
+    │   ├── test-utils/             # Shared testing utilities for all nodes
+    │   └── run-all-node-tests.js   # Master test runner
     ├── docker-compose.haystack.yml # Haystack services config
     ├── haystack-service/          # Haystack API implementation
     │   └── haystack_service.py    # Main service (7 endpoints)
@@ -358,7 +360,46 @@ npm link n8n-nodes-yournode
 docker-compose restart n8n
 ```
 
-#### 5. **Best Practices from DeepSeek Node**
+#### 5. **Testing Your Node**
+
+The project includes a comprehensive testing framework with shared utilities for all custom nodes:
+
+```bash
+# Test a specific node
+cd n8n/custom-nodes/n8n-nodes-yournode
+npm test
+
+# Test all nodes
+cd n8n/custom-nodes
+node run-all-node-tests.js
+
+# Test specific operations
+npm run test:unit        # Unit tests only
+npm run test:integration # Integration tests
+npm run test:quick       # Quick structure validation
+```
+
+**Test Structure**:
+```
+n8n-nodes-yournode/
+└── test/
+    ├── run-tests.js      # Node test runner
+    ├── unit/             # Unit tests
+    │   ├── test-node-structure.js
+    │   └── test-config.js
+    └── integration/      # Integration tests
+        └── test-api.js
+```
+
+**Using Shared Test Utilities**:
+- `test-utils/common/test-runner.js` - Unified test execution
+- `test-utils/common/node-validator.js` - Node structure validation
+- `test-utils/common/env-loader.js` - Environment configuration
+- `test-utils/common/api-tester.js` - API endpoint testing
+
+See `n8n/custom-nodes/TEST_CONSOLIDATION.md` for detailed testing documentation.
+
+#### 6. **Best Practices from DeepSeek Node**
 
 1. **Error Handling**: Always wrap API calls in try-catch blocks
 2. **Logging**: Use console.log for debugging during development
@@ -367,6 +408,7 @@ docker-compose restart n8n
 5. **Type Safety**: Use TypeScript interfaces for data structures
 6. **UI Properties**: Provide sensible defaults and clear descriptions
 7. **Advanced Options**: Hide complex settings under "Additional Fields"
+8. **Testing**: Write comprehensive tests using the shared utilities
 
 ### AI Agent Integration Patterns
 
@@ -577,15 +619,24 @@ docker-compose down && docker-compose up -d
 # Check service health
 curl http://localhost:8080/n8n/healthz
 curl http://localhost:8000/health
+
+# Run tests for all custom nodes
+cd n8n/custom-nodes
+node run-all-node-tests.js
+
+# Test specific node
+node run-all-node-tests.js bitnet
 ```
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Write tests for your changes using the shared test utilities
+4. Ensure all tests pass: `cd n8n/custom-nodes && node run-all-node-tests.js`
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
 ## License
 
