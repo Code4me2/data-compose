@@ -12,7 +12,7 @@
 3. **Configure BitNet Node**:
    - **Operation**: Chat Completion
    - **Server Mode**: External Server
-   - **Server URL**: `http://host.docker.internal:8080`
+   - **Server URL**: `http://host.docker.internal:11434`
    - **Model**: BitNet b1.58 2B (default)
    - **User Message**: "Hello! What is BitNet?"
    - Leave "Messages" field empty (it will use User Message)
@@ -49,8 +49,8 @@ Or with system prompt:
 
 2. **Connection refused**:
    - Check BitNet server is running: `ps aux | grep llama-server`
-   - Verify server URL is `http://host.docker.internal:8080`
+   - Verify server URL is `http://host.docker.internal:11434`
 
 3. **No response**:
    - Check Docker logs: `docker logs data-compose-n8n-1`
-   - Ensure BitNet server health: `curl http://localhost:8080/health`
+   - Ensure BitNet server health: `curl http://localhost:11434/health`

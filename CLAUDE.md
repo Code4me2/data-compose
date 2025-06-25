@@ -694,3 +694,88 @@ cd n8n && ./start_haystack_services.sh
 - Complete feature documentation: `n8n/haystack_readme.md`
 - API Documentation: http://localhost:8000/docs
 - Archived planning/development docs: `n8n/archived-docs/`
+
+# Hierarchical Summarization Visualization
+
+## Overview
+The Hierarchical Summarization feature provides an advanced visualization and navigation system for exploring document hierarchies with multiple levels of summarization. This visualization was enhanced with smooth animations, keyboard navigation, search functionality, and real-time updates.
+
+## Key Features Implemented
+
+### Visual Hierarchy
+- **Level-based Color Coding**: Each hierarchy level has distinct colors:
+  - Level 0 (Source Documents): Light blue (#e3f2fd)
+  - Level 1 (Initial Summaries): Light green (#e8f5e9)
+  - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
+  - Level 3 (Final Summary): Light purple (#f3e5f5)
+- **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
+- **Active Path Highlighting**: Shows the relationship path between nodes
+
+### Navigation Methods
+
+1. **Arrow Navigation**
+   - Left/Right arrows: Navigate between hierarchy levels (parent/child relationships)
+   - Up/Down arrows: Navigate between siblings at the same level
+   - Hover tooltips show preview of target nodes
+
+2. **Keyboard Shortcuts**
+   - `←` Navigate to parent level (toward final summary)
+   - `→` Navigate to child level (toward source documents)
+   - `↑` Previous sibling at same level
+   - `↓` Next sibling at same level
+   - `Home` Jump directly to final summary
+   - `End` Jump to first source document
+   - `Ctrl+/` Open search dialog
+
+3. **Breadcrumb Navigation**
+   - Shows current path from final summary to current node
+   - Click any breadcrumb to jump directly to that node
+   - Color-coded breadcrumbs match level colors
+
+4. **Quick Jump Dropdown**
+   - Access via compass icon in top-right
+   - Nodes organized by hierarchy levels
+   - Shows preview of each node's content
+   - Searchable dropdown for quick access
+
+5. **Search Functionality**
+   - Full-text search across all nodes
+   - Highlighted matches in visualization
+   - Context preview showing surrounding text
+   - Click search results to navigate directly
+
+### Additional Features
+- **Minimap**: Interactive overview showing entire hierarchy with current viewport
+- **Zoom/Pan**: Mouse wheel zoom, click and drag to pan
+- **URL Bookmarking**: Direct links to specific nodes via URL hash
+- **Progressive Loading**: Handles large hierarchies efficiently
+- **Responsive Design**: Adapts to different screen sizes
+- **Real-time Updates**: Visual indicators for processing status with 2-second polling
+
+## Technical Implementation Details
+
+### Navigation Bug Fix
+Fixed critical navigation logic where left/right arrow directions were reversed. The navigation now correctly:
+- Left arrow navigates to parent nodes (higher level, toward final summary)
+- Right arrow navigates to child nodes (lower level, toward source documents)
+
+### Performance Optimizations
+- Debounced zoom/pan operations for smoother interaction
+- Smart viewport culling for large hierarchies
+- Efficient path highlighting using D3.js selections
+
+### Visual Enhancements
+- Smooth cubic bezier easing for node focus transitions
+- Animated dashed borders for active processing nodes
+- Opacity fading for non-focused nodes
+- Loading overlay for initial data fetch
+
+### CSS Architecture
+All hierarchy levels use CSS custom properties for easy theming and consistency across the visualization.
+
+## Future Enhancement Ideas
+- WebSocket support for true real-time updates
+- Canvas/WebGL rendering for very large hierarchies
+- Node clustering for better performance
+- Export visualization as image/PDF
+- Collaborative viewing with shared cursors
