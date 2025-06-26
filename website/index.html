@@ -135,9 +135,14 @@
                 <div class="hierarchical-container">
                     <!-- Section Header with History Toggle -->
                     <div class="section-header">
-                        <button id="history-toggle" class="history-toggle-btn" onclick="toggleHistoryDrawer()" title="Show History">
-                            <i class="fas fa-clock"></i>
-                        </button>
+                        <div class="section-actions">
+                            <button id="history-toggle" class="history-toggle-btn" onclick="toggleHistoryDrawer()" title="Show History">
+                                <i class="fas fa-clock"></i>
+                            </button>
+                            <button class="new-summarization-main-btn" onclick="startNewSummarization()" title="New Summarization">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
                         <div>
                             <h2 class="section-title">Hierarchical Document Summarization</h2>
                             <p class="section-subtitle">Process directories of documents into hierarchical summaries</p>
@@ -286,14 +291,9 @@
             <h3 class="drawer-title">
                 <i class="fas fa-history"></i> Summarization History
             </h3>
-            <div class="drawer-actions">
-                <button class="new-summarization-btn" onclick="startNewSummarization()" title="New Summarization">
-                    <i class="fas fa-plus"></i>
-                </button>
-                <button class="drawer-close" onclick="toggleHistoryDrawer()">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
+            <button class="drawer-close" onclick="toggleHistoryDrawer()">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
         <div id="history-list" class="history-list">
             <div class="history-empty">No summarizations yet</div>

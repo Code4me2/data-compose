@@ -97,13 +97,15 @@ class DataComposeApp {
         this.registerSection('hierarchical-summarization', {
             onShow: () => {
                 this.loadSummarizationHistory();
-                // Show history toggle button
+                // Show history toggle button and new summarization button
                 document.getElementById('history-toggle').style.display = 'flex';
+                document.querySelector('.new-summarization-main-btn').style.display = 'flex';
             },
             onHide: () => {
                 // Hide history drawer when leaving section
                 document.getElementById('history-drawer').classList.remove('open');
                 document.getElementById('history-toggle').style.display = 'none';
+                document.querySelector('.new-summarization-main-btn').style.display = 'none';
             }
         });
     }

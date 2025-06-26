@@ -752,6 +752,15 @@ The Hierarchical Summarization feature provides an advanced visualization and na
 - **Responsive Design**: Adapts to different screen sizes
 - **Real-time Updates**: Visual indicators for processing status with 2-second polling
 
+### History Management Features
+- **New Summarization Button**: Plus (+) button below the history clock icon in the main window
+  - Quickly start a new summarization without opening the history drawer
+  - Clears any active history selection and returns to the form view
+- **Delete History Items**: Right-click on any history item to delete
+  - Shows confirmation dialog before deletion
+  - Sends 'delete_summarization' action to n8n webhook
+  - Automatically switches to form view if deleted item was being viewed
+
 ## Technical Implementation Details
 
 ### Navigation Bug Fix

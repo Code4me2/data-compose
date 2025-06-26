@@ -636,10 +636,17 @@ body {
     margin-bottom: 2rem;
 }
 
-.history-toggle-btn {
+.section-actions {
     position: absolute;
     left: 0;
     top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.history-toggle-btn,
+.new-summarization-main-btn {
     background: var(--primary-color);
     color: var(--white);
     border: none;
@@ -654,7 +661,8 @@ body {
     box-shadow: var(--shadow);
 }
 
-.history-toggle-btn:hover {
+.history-toggle-btn:hover,
+.new-summarization-main-btn:hover {
     transform: scale(1.1);
     box-shadow: 0 6px 12px rgba(0,0,0,0.15);
 }
@@ -712,27 +720,6 @@ body {
 
 .drawer-close:hover {
     transform: rotate(90deg);
-}
-
-.drawer-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
-
-.new-summarization-btn {
-    background: rgba(255, 255, 255, 0.2);
-    border: none;
-    color: var(--white);
-    font-size: 1rem;
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: var(--border-radius);
-    transition: background 0.2s ease;
-}
-
-.new-summarization-btn:hover {
-    background: rgba(255, 255, 255, 0.3);
 }
 
 .history-list {
