@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react';
 import { Send, Wrench } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import Image from 'next/image';
 import DarkModeToggle from '@/components/DarkModeToggle';
 import TaskBar from '@/components/TaskBar';
 import CitationPanel from '@/components/CitationPanel';
@@ -478,9 +479,11 @@ export default function LawyerChat() {
               {!isTaskBarExpanded && (
                 <div className="flex items-center gap-2">
                   <img 
-                    src="/logo.png" 
+                    src="/legal-chat/logo.png" 
                     alt="AI Legal Logo" 
-                    className="h-8 w-8 object-contain"
+                    width={32}
+                    height={32}
+                    className="object-contain"
                   />
                   <h1 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : ''}`} style={{ color: isDarkMode ? '#ffffff' : '#004A84' }}>AI Legal</h1>
                 </div>

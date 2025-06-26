@@ -135,13 +135,39 @@ docker-compose up legal-chat
 4. **CORS headers** already configured in Next.js config
 5. **Rate limiting** implemented in middleware
 
+## Resolved Issues
+
+### Logo Not Rendering
+- **Issue**: Logo referenced as `/logo.png` without base path
+- **Fix**: Updated to `/legal-chat/logo.png` in `src/app/page.tsx`
+- **File**: Static assets must include base path when served through proxy
+
+### Login Link 404 Error
+- **Issue**: NextAuth `signIn()` function not aware of base path
+- **Fix**: Updated to include callback URL: `signIn(undefined, { callbackUrl: '/legal-chat' })`
+- **Files Modified**: `src/components/TaskBar.tsx` (two locations)
+
+### Environment Variable Quotes
+- **Issue**: Docker Compose passing quotes literally in environment variables
+- **Fix**: Removed quotes from environment values in `docker-compose.yml`
+- **Example**: Changed `DATABASE_URL="${VAR}"` to `DATABASE_URL=${VAR}`
+
+## Current Working State
+
+All interfaces are fully functional:
+- **Main Interface**: http://localhost:8080
+- **Lawyer Chat**: http://localhost:8080/legal-chat
+- **Sign In**: Works correctly with base path
+- **Logo**: Displays properly
+
 ## Next Steps
 
 1. Configure email server for authentication
-2. Set up proper NEXTAUTH_SECRET
+2. Set up proper NEXTAUTH_SECRET for production
 3. Test user registration flow
 4. Consider implementing SSO with n8n
 5. Add monitoring and alerting
+6. Consider migrating to Next.js Image component when base path issues are resolved
 
 ## File Structure
 ```

@@ -426,7 +426,7 @@ export default function TaskBar({ onChatSelect, onNewChat }: TaskBarProps = {}) 
                       if (session) {
                         setShowUserMenu(!showUserMenu);
                       } else {
-                        signIn();
+                        signIn(undefined, { callbackUrl: '/legal-chat' });
                       }
                     }}
                     className="ml-3 text-sm font-medium whitespace-nowrap transition-opacity duration-300 hover:underline cursor-pointer"
@@ -479,7 +479,7 @@ export default function TaskBar({ onChatSelect, onNewChat }: TaskBarProps = {}) 
                     <button
                       onClick={() => {
                         setShowUserMenu(false);
-                        signIn();
+                        signIn(undefined, { callbackUrl: '/legal-chat' });
                       }}
                       className={`w-full flex items-center px-4 py-3 text-sm transition-colors ${
                         isDarkMode 
