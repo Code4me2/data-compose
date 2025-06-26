@@ -1690,27 +1690,73 @@ async function summarizeChunk(
     }
 
     // Call the language model with configurable timeout
-    const response = await Promise.race([
-      (languageModel as any).invoke({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userContent }
-        ],
-        options: {
-          temperature: 0.3,
-          maxTokensToSample: 50,
-        }
-      }),
-      new Promise((_, reject) => 
-        setTimeout(() => reject(new Error(`AI request timeout after ${resilience.requestTimeout}ms`)), resilience.requestTimeout)
-      )
-    ]);
+    let response;
+    
+    try {
+      // First try the custom node format (BitNet style with messages array)
+      response = await Promise.race([
+        (languageModel as any).invoke({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userContent }
+          ],
+          options: {
+            temperature: 0.3,
+            maxTokensToSample: 50,
+          }
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error(`AI request timeout after ${resilience.requestTimeout}ms`)), resilience.requestTimeout)
+        )
+      ]);
+    } catch (invokeError: any) {
+      // If it fails with toChatMessages error, try the default n8n format (string prompt)
+      if (invokeError.message?.includes('toChatMessages') || invokeError.message?.includes('messages')) {
+        logger('Custom format failed, trying default n8n format (string prompt)');
+        const combinedPrompt = `${systemPrompt}\n\nHuman: ${userContent}\n\nAI:`;
+        
+        response = await Promise.race([
+          (languageModel as any).invoke(combinedPrompt, {
+            temperature: 0.3,
+            estimatedTokens: estimateTokenCount(userContent) + 100,
+            options: {
+              temperature: 0.3,
+              max_tokens: 50,
+            }
+          }),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`AI request timeout after ${resilience.requestTimeout}ms`)), resilience.requestTimeout)
+          )
+        ]);
+      } else {
+        // If it's a different error, re-throw it
+        throw invokeError;
+      }
+    }
+
+    // Debug logging for response format (only in manual mode to avoid cluttering logs)
+    if (executeFunctions.getMode && executeFunctions.getMode() === 'manual') {
+      console.log('=== AI Response Debug ===');
+      console.log('Response type:', typeof response);
+      console.log('Response constructor:', response?.constructor?.name);
+      console.log('Response keys:', Object.keys(response || {}));
+      if (response && typeof response === 'object') {
+        console.log('Has lc_kwargs:', 'lc_kwargs' in response);
+        console.log('Has _getType:', typeof response._getType === 'function');
+        console.log('Sample response:', JSON.stringify(response, null, 2).substring(0, 500));
+      }
+      console.log('=== End Debug ===');
+    }
 
     // Extract the summary from response
     const summary = parseAIResponse(response);
     
     if (!summary) {
-      throw new Error('AI model returned empty response');
+      throw new NodeOperationError(
+        executeFunctions.getNode(),
+        'AI model returned empty or unrecognized response format. This may indicate an incompatibility with the connected AI model.',
+        { description: 'The AI model response could not be parsed. Please check that you are using a compatible AI model.' }
+      );
     }
 
     const trimmedSummary = summary.trim();
@@ -1782,7 +1828,15 @@ async function summarizeChunk(
     // Use fallback if enabled
     if (resilience.fallbackEnabled) {
       logger('Using fallback summary generation');
-      return generateFallbackSummary(chunk);
+      // Note: We generate the fallback but don't use it - we want to fail instead
+      generateFallbackSummary(chunk);
+      
+      // Throw error to indicate AI connection failure
+      throw new NodeOperationError(
+        executeFunctions.getNode(),
+        `AI model connection failed: ${errorMessage}. The node cannot proceed without a working AI connection.`,
+        { description: 'Please ensure an AI model is properly connected and configured.' }
+      );
     }
     
     // Re-throw if no fallback
@@ -1803,6 +1857,14 @@ function parseAIResponse(response: any): string {
 
   // Try various response formats in order of likelihood
   const extractors = [
+    // n8n AI node format (as seen in actual output)
+    () => response.response?.generations?.[0]?.[0]?.text,
+    () => response.generations?.[0]?.[0]?.text,
+    
+    // LangChain BaseMessage format (used by default n8n nodes)
+    () => response.lc_kwargs?.content,
+    () => response.content && typeof response._getType === 'function' ? response.content : undefined,
+    
     // OpenAI ChatGPT format
     () => response.choices?.[0]?.message?.content,
     () => response.choices?.[0]?.text,
