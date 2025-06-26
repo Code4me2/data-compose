@@ -1,0 +1,130 @@
+{
+  "name": "Legal Chat Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "legal-chat",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/event-stream"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-cache"
+              },
+              {
+                "name": "Connection",
+                "value": "keep-alive"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c188c31c-1c45-4118-9ece-5b6057ab5178",
+      "name": "Legal Chat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        300,
+        300
+      ],
+      "webhookId": "legal-chat"
+    },
+    {
+      "parameters": {
+        "operation": "chat",
+        "message": "={{ $json.message }}",
+        "modelId": "deepseek-r1:1.5b",
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 4000,
+          "showThinking": false
+        }
+      },
+      "id": "d298c31c-2c45-5228-0ece-6c7168cd6289",
+      "name": "DeepSeek R1",
+      "type": "n8n-nodes-deepseek.dsr1",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Format the response as Server-Sent Events (SSE)\nconst aiResponse = items[0].json.response || items[0].json.text || '';\nconst thinking = items[0].json.thinking || '';\n\n// Create SSE formatted response\nlet sseResponse = '';\n\n// Send the main response\nsseResponse += `data: ${JSON.stringify({ content: aiResponse, done: false })}\\n\\n`;\n\n// If there's thinking content and showThinking is enabled\nif (thinking && $input.first().json.tools?.showThinking) {\n  sseResponse += `data: ${JSON.stringify({ thinking: thinking, done: false })}\\n\\n`;\n}\n\n// Send done signal\nsseResponse += `data: ${JSON.stringify({ done: true })}\\n\\n`;\n\nreturn [{\n  json: {\n    response: sseResponse\n  }\n}];"
+      },
+      "id": "e398d41d-3d56-6339-1fdf-7d8279de73a0",
+      "name": "Format SSE Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.response }}",
+        "options": {}
+      },
+      "id": "f498e51e-4e67-7449-2eef-8e9380ef84b1",
+      "name": "Send SSE Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Legal Chat Webhook": {
+      "main": [
+        [
+          {
+            "node": "DeepSeek R1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DeepSeek R1": {
+      "main": [
+        [
+          {
+            "node": "Format SSE Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format SSE Response": {
+      "main": [
+        [
+          {
+            "node": "Send SSE Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateId": "legal-chat-webhook-template"
+  },
+  "pinData": {}
+}

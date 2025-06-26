@@ -13,6 +13,9 @@ import AnalyticsDropdown from '@/components/AnalyticsDropdown';
 import { useSidebarStore } from '@/store/sidebar';
 import { getRandomMockCitation } from '@/utils/mockCitations';
 import { mockAnalyticsData } from '@/utils/mockAnalytics';
+import { buildAssetPath, buildApiUrl } from '@/lib/paths';
+import { apiClient } from '@/lib/api-client';
+import type { ChatMessage, StreamingChatResponse } from '@/types/api';
 
 interface Message {
   id: number;
@@ -181,7 +184,7 @@ export default function LawyerChat() {
 
   const fetchChatHistory = async () => {
     try {
-      const response = await fetch('/api/chats', {
+      const response = await fetch(buildApiUrl('/api/chats'), {
         credentials: 'include'
       });
       if (response.ok) {
@@ -197,7 +200,7 @@ export default function LawyerChat() {
     if (!session?.user) return;
     
     try {
-      const response = await fetch('/api/chats', {
+      const response = await fetch(buildApiUrl('/api/chats'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'New Chat' }),
@@ -299,8 +302,8 @@ export default function LawyerChat() {
     setMessages(prev => [...prev, assistantMessage]);
 
     try {
-      // Call the API endpoint
-      const response = await fetch('/api/chat', {
+      // Call the API endpoint using typed client
+      const response = await fetch(buildApiUrl('/api/chat'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -479,7 +482,7 @@ export default function LawyerChat() {
               {!isTaskBarExpanded && (
                 <div className="flex items-center gap-2">
                   <img 
-                    src="/legal-chat/logo.png" 
+                    src={buildAssetPath('logo')} 
                     alt="AI Legal Logo" 
                     width={32}
                     height={32}

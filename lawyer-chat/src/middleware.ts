@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { removeBasePath } from './lib/paths';
 
 // Simple in-memory rate limiter (use Redis in production)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -12,20 +13,24 @@ const MAX_REQUESTS = {
   default: 100     // 100 requests per minute for other endpoints
 };
 
+const BASE_PATH = process.env.BASE_PATH || '';
+
 export function middleware(request: NextRequest) {
+  // Get the pathname without base path for matching
+  const pathname = removeBasePath(request.nextUrl.pathname);
+  
   // Only apply to API routes
-  if (!request.nextUrl.pathname.startsWith('/api')) {
+  if (!pathname.startsWith('/api')) {
     return NextResponse.next();
   }
 
   // Get client identifier (IP or user ID)
   const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
-  const path = request.nextUrl.pathname;
-  const key = `${ip}:${path}`;
+  const key = `${ip}:${pathname}`;
 
   // Get rate limit for this endpoint
   const limit = Object.entries(MAX_REQUESTS).find(([route]) => 
-    path.startsWith(route)
+    pathname.startsWith(route)
   )?.[1] || MAX_REQUESTS.default;
 
   // Check rate limit
@@ -80,5 +85,5 @@ if (typeof window === 'undefined') {
 }
 
 export const config = {
-  matcher: '/api/:path*'
+  matcher: BASE_PATH ? `${BASE_PATH}/api/:path*` : '/api/:path*'
 };
