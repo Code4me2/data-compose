@@ -233,7 +233,7 @@ it('should process text with AI model', async () => {
 
 - **MinimalAIModel.node.ts**: Basic AI provider implementation
 - **BitNet.node.ts**: Production example with LangChain compatibility
-- **HierarchicalSummarization.node.ts**: Consumer node using AI models
+- **HierarchicalSummarization.node.ts**: Consumer node using AI models (supports both custom and default n8n AI nodes)
 
 ## Additional Resources
 

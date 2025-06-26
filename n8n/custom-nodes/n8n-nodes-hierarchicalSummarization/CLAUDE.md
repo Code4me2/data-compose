@@ -2,7 +2,7 @@
 
 ## Current Status (UPDATED)
 
-The Hierarchical Summarization (HS) node has been significantly improved with a new architecture that provides better traceability, fixes the infinite recursion bug, and includes comprehensive resilience features for handling AI server failures.
+The Hierarchical Summarization (HS) node has been significantly improved with a new architecture that provides better traceability, fixes the infinite recursion bug, and includes comprehensive resilience features for handling AI server failures. The node now supports both custom AI nodes (like BitNet) and default n8n AI nodes (OpenAI, Anthropic, Google Gemini, etc.) through automatic format detection.
 
 ## Architecture Overview
 
@@ -15,10 +15,36 @@ The Hierarchical Summarization (HS) node has been significantly improved with a 
 ### Key Improvements
 1. **Fixed Infinite Recursion**: Summaries are never re-chunked at higher levels
 2. **Complete Traceability**: Can trace any summary back to exact source content
-3. **BitNet Resilience**: Comprehensive protection against AI server failures
+3. **Dual AI Node Compatibility**: Works with both custom nodes (BitNet) and default n8n AI nodes
 4. **Automatic Schema Migration**: Handles database updates seamlessly
+5. **Resilience Features**: Comprehensive protection against AI server failures
 
-## BitNet Server Resilience Implementation
+## AI Node Compatibility
+
+### Supported AI Nodes
+The Hierarchical Summarization node now supports two types of AI node connections:
+
+1. **Custom AI Nodes** (e.g., BitNet)
+   - Use structured message format: `{ messages: [...], options: {...} }`
+   - Return simple response format: `{ text: "...", content: "..." }`
+
+2. **Default n8n AI Nodes** (OpenAI, Anthropic, Google Gemini, etc.)
+   - Use string prompt format: `"prompt text"`
+   - Return n8n generations format: `{ response: { generations: [[{ text: "..." }]] } }`
+
+### Automatic Format Detection
+The node automatically detects which format to use:
+1. First attempts custom node format (messages array)
+2. If that fails with a `toChatMessages` error, falls back to default n8n format
+3. No manual configuration required - it "just works" with any AI node
+
+### Connection Examples
+- **With BitNet**: Connect BitNet node → HS node (works as before)
+- **With OpenAI**: Connect OpenAI Chat Model → HS node (now supported)
+- **With Anthropic**: Connect Anthropic Chat Model → HS node (now supported)
+- **With any n8n AI node**: Should work automatically
+
+## Server Resilience Implementation
 
 ### Overview
 Comprehensive resilience features have been implemented to handle BitNet server failures gracefully. The system now includes retry logic with exponential backoff, circuit breaker pattern, and rate limiting.

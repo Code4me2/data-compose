@@ -8,7 +8,7 @@ This is an n8n community node that provides hierarchical document summarization 
 - 🌳 **Hierarchical Summarization**: Creates multi-level summary trees
 - 🔄 **Smart Chunking**: Automatically splits large documents while preserving context
 - 💾 **PostgreSQL Storage**: Persists document hierarchies for analysis
-- 🤖 **AI Model Flexibility**: Works with any n8n-compatible language model
+- 🤖 **AI Model Flexibility**: Works with both custom AI nodes (BitNet) and default n8n AI nodes (OpenAI, Anthropic, etc.)
 - ⚡ **Transaction Safety**: Atomic operations ensure data consistency
 - 🛡️ **Production-Ready Resilience**: Handles AI server failures gracefully
 - 🔁 **Automatic Retry Logic**: Exponential backoff with jitter
@@ -33,7 +33,10 @@ If using the Docker setup from data-compose:
 ### Inputs
 
 1. **Main Input** (Optional) - Document data from previous nodes
-2. **AI Language Model** (Required) - Any compatible language model for summarization
+2. **AI Language Model** (Required) - Connect any AI model node:
+   - **Custom nodes**: BitNet, local AI models
+   - **Default n8n nodes**: OpenAI Chat Model, Anthropic Chat Model, Google Gemini Chat Model, etc.
+   - Automatically detects and adapts to the connected AI node's format
 
 ### Parameters
 
@@ -86,10 +89,10 @@ Two methods available:
 
 ## Usage Examples
 
-### Example 1: Summarize Directory of Documents
+### Example 1: Summarize Directory with Default n8n AI Node
 
 1. Add **Hierarchical Summarization** node
-2. Add **AI Language Model** node (e.g., OpenAI)
+2. Add **OpenAI Chat Model** node (or Anthropic, Google Gemini, etc.)
 3. Connect AI model to Language Model input
 4. Configure:
    - Content Source: `Directory Path`
@@ -97,7 +100,16 @@ Two methods available:
    - Database Config: Select your PostgreSQL credentials
 5. Execute workflow
 
-### Example 2: Process Documents from Previous Node
+### Example 2: Summarize with BitNet Custom Node
+
+1. Add **Hierarchical Summarization** node
+2. Add **BitNet** node
+3. Connect BitNet to Language Model input
+4. Configure BitNet with your model settings
+5. Configure Hierarchical Summarization as needed
+6. Execute workflow
+
+### Example 3: Process Documents from Previous Node
 
 1. Add data source node (e.g., Read Binary Files)
 2. Add **Hierarchical Summarization** node
@@ -107,7 +119,7 @@ Two methods available:
    - Content Source: `Previous Node Data`
    - Ensure input has `content` field
 
-### Example 3: Custom Summarization Prompt
+### Example 4: Custom Summarization Prompt
 
 ```
 Summary Prompt: Extract and list the key action items from <c></c>
