@@ -289,7 +289,9 @@ class DataComposeApp {
             historyList.innerHTML = '<div class="history-empty">No summarizations yet</div>';
         } else {
             historyList.innerHTML = history.map(item => `
-                <div class="history-item" onclick="selectHistoryItem('${item.batchId}')">
+                <div class="history-item" 
+                     onclick="selectHistoryItem('${item.batchId}')"
+                     oncontextmenu="showHistoryContextMenu(event, '${item.batchId}', '${item.directoryName}'); return false;">
                     <div class="history-item-title">${item.directoryName}</div>
                     <div class="history-item-meta">
                         ${new Date(item.timestamp).toLocaleDateString()} • 
@@ -452,6 +454,112 @@ function selectHistoryItem(batchId) {
     
     // Load the visualization
     showHierarchyVisualization(batchId);
+}
+
+function startNewSummarization() {
+    // Clear any active history items
+    document.querySelectorAll('.history-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    
+    // Show form, hide visualization
+    document.getElementById('summarization-form').classList.remove('hidden');
+    document.getElementById('hierarchy-visualization').classList.add('hidden');
+    
+    // Clear the directory input
+    document.getElementById('directory-name').value = '';
+    
+    // Close the history drawer if it's open
+    document.getElementById('history-drawer').classList.remove('open');
+}
+
+// Context menu for history items
+function showHistoryContextMenu(event, batchId, directoryName) {
+    event.preventDefault();
+    
+    // Remove any existing context menu
+    const existingMenu = document.querySelector('.context-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+    
+    // Create context menu
+    const menu = document.createElement('div');
+    menu.className = 'context-menu';
+    menu.innerHTML = `
+        <div class="context-menu-item" onclick="deleteHistoryItem('${batchId}', '${directoryName}')">
+            <i class="fas fa-trash"></i> Delete
+        </div>
+    `;
+    
+    // Position the menu
+    menu.style.left = event.pageX + 'px';
+    menu.style.top = event.pageY + 'px';
+    
+    document.body.appendChild(menu);
+    
+    // Close menu when clicking elsewhere
+    const closeMenu = () => {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+    };
+    
+    setTimeout(() => {
+        document.addEventListener('click', closeMenu);
+    }, 100);
+}
+
+async function deleteHistoryItem(batchId, directoryName) {
+    // Close any context menu
+    const menu = document.querySelector('.context-menu');
+    if (menu) menu.remove();
+    
+    // Confirm deletion
+    if (!confirm(`Are you sure you want to delete the summarization for "${directoryName}"?`)) {
+        return;
+    }
+    
+    try {
+        // Send delete action to n8n
+        const response = await fetch(CONFIG.WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'delete_summarization',
+                batchId: batchId,
+                directoryName: directoryName,
+                timestamp: new Date().toISOString()
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Failed to delete: ${response.status}`);
+        }
+        
+        // Remove from local storage
+        const history = window.app.getSummarizationHistory();
+        const updatedHistory = history.filter(item => item.batchId !== batchId);
+        localStorage.setItem('hierarchical_summaries_history', JSON.stringify(updatedHistory));
+        
+        // Reload history display
+        window.app.loadSummarizationHistory();
+        
+        // If the deleted item was currently being viewed, show the form
+        const currentVisualization = document.getElementById('hierarchy-visualization');
+        if (!currentVisualization.classList.contains('hidden')) {
+            // Check if we're viewing the deleted item
+            const vizContainer = currentVisualization.querySelector('[data-batch-id]');
+            if (vizContainer && vizContainer.dataset.batchId === batchId) {
+                startNewSummarization();
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error deleting summarization:', error);
+        alert('Failed to delete summarization: ' + error.message);
+    }
 }
 
 // Hierarchy Visualization Functions

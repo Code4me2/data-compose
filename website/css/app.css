@@ -714,6 +714,27 @@ body {
     transform: rotate(90deg);
 }
 
+.drawer-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.new-summarization-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: var(--white);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: var(--border-radius);
+    transition: background 0.2s ease;
+}
+
+.new-summarization-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 .history-list {
     padding: 1rem;
 }
@@ -1613,4 +1634,35 @@ body {
 
 .bubble-node.error .bubble-bg {
     stroke: var(--error-color);
+}
+
+/* Context Menu */
+.context-menu {
+    position: absolute;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    padding: 0.5rem 0;
+    min-width: 120px;
+    z-index: 10000;
+}
+
+.context-menu-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.context-menu-item:hover {
+    background: var(--light-bg);
+}
+
+.context-menu-item i {
+    width: 16px;
+    text-align: center;
+    color: var(--danger-color);
 }

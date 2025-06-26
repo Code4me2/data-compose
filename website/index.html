@@ -286,9 +286,14 @@
             <h3 class="drawer-title">
                 <i class="fas fa-history"></i> Summarization History
             </h3>
-            <button class="drawer-close" onclick="toggleHistoryDrawer()">
-                <i class="fas fa-times"></i>
-            </button>
+            <div class="drawer-actions">
+                <button class="new-summarization-btn" onclick="startNewSummarization()" title="New Summarization">
+                    <i class="fas fa-plus"></i>
+                </button>
+                <button class="drawer-close" onclick="toggleHistoryDrawer()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </div>
         <div id="history-list" class="history-list">
             <div class="history-empty">No summarizations yet</div>
