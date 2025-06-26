@@ -5,6 +5,8 @@ import { Menu, Plus, LogOut, User, Search } from 'lucide-react';
 import { useSidebarStore } from '@/store/sidebar';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { isToday, isYesterday, isThisWeek, isThisMonth, format } from 'date-fns';
+import { buildAssetPath, buildApiUrl } from '@/lib/paths';
+import type { Chat } from '@/types/api';
 
 interface TaskBarProps {
   onChatSelect?: (chatId: string) => void;
@@ -43,7 +45,7 @@ export default function TaskBar({ onChatSelect, onNewChat }: TaskBarProps = {}) 
 
   const fetchChatHistory = async () => {
     try {
-      const response = await fetch('/api/chats');
+      const response = await fetch(buildApiUrl('/api/chats'));
       if (response.ok) {
         const data = await response.json();
         setChatHistory(data);
@@ -116,7 +118,7 @@ export default function TaskBar({ onChatSelect, onNewChat }: TaskBarProps = {}) 
                 {/* Logo and Title on the left */}
                 <div className="flex items-center gap-2">
                   <img 
-                    src="/logo.png" 
+                    src={buildAssetPath('logo')} 
                     alt="AI Legal Logo" 
                     className="h-8 w-8 object-contain"
                   />

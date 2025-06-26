@@ -7,6 +7,8 @@ import { useSidebarStore } from '@/store/sidebar';
 import DarkModeToggle from '@/components/DarkModeToggle';
 import { Users, Shield, Activity, AlertTriangle, Download, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
+import { buildApiUrl } from '@/lib/paths';
+import type { AdminUser, AuditLog } from '@/types/api';
 
 interface UserData {
   id: string;
@@ -62,7 +64,7 @@ export default function AdminDashboard() {
     setIsLoading(true);
     try {
       // Fetch users
-      const usersRes = await fetch('/api/admin/users', {
+      const usersRes = await fetch(buildApiUrl('/api/admin/users'), {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -97,7 +99,7 @@ export default function AdminDashboard() {
       }
 
       // Fetch audit logs
-      const logsRes = await fetch('/api/admin/audit-logs', {
+      const logsRes = await fetch(buildApiUrl('/api/admin/audit-logs'), {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',

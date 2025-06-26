@@ -92,24 +92,5 @@ export function validateEmailDomain(email: string): boolean {
   return email.endsWith(VALIDATION_RULES.email.domain);
 }
 
-// Sanitize JSON data to prevent prototype pollution
-export function sanitizeJson(obj: any): any {
-  if (typeof obj !== 'object' || obj === null) return obj;
-  
-  const sanitized: any = Array.isArray(obj) ? [] : {};
-  
-  for (const key in obj) {
-    // Skip prototype properties
-    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
-      continue;
-    }
-    
-    if (obj.hasOwnProperty(key)) {
-      sanitized[key] = typeof obj[key] === 'object' 
-        ? sanitizeJson(obj[key]) 
-        : obj[key];
-    }
-  }
-  
-  return sanitized;
-}
+// Re-export the type-safe sanitizeJson from our validation library
+export { sanitizeJson } from '@/lib/validation';

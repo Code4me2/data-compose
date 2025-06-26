@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSidebarStore } from '@/store/sidebar';
 import DarkModeWrapper from '@/components/DarkModeWrapper';
 import { Eye, EyeOff, Check, X } from 'lucide-react';
+import { buildApiUrl } from '@/lib/paths';
 
 export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +36,7 @@ export default function Register() {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch(buildApiUrl('/api/auth/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
