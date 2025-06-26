@@ -1,6 +1,6 @@
 # Data Compose
 
-A sophisticated web application that integrates workflow automation (n8n) with AI capabilities for processing and analyzing large-scale textual data, with a focus on judicial and legal document processing.
+A sophisticated web application that integrates workflow automation (n8n) with AI capabilities for processing and analyzing large-scale textual data, with a focus on judicial and legal document processing. Includes automated court opinion scraping and judge-based document organization.
 
 ## Quick Start
 
@@ -88,6 +88,7 @@ When starting up with this project, there are a few common issues, especially gi
 Data Compose combines multiple technologies to create a powerful document processing platform:
 - **n8n** workflow automation engine with custom AI nodes
 - **DeepSeek R1** AI model integration via Ollama
+- **Court Opinion Scraper** for automated judicial document collection
 - **Elasticsearch** and **Haystack-inspired** API for advanced document search and analysis
 - Modern **Single Page Application** frontend
 - **Docker-based** microservices architecture
@@ -99,6 +100,14 @@ Data Compose combines multiple technologies to create a powerful document proces
 - Webhook-based communication
 - Thinking process visibility
 - Context-aware responses
+
+### ⚖️ Court Opinion Processing
+- Automated daily scraping of federal court opinions
+- Judge-centric database organization
+- PDF text extraction with OCR fallback
+- Support for multiple courts (Tax Court, 9th Circuit, 1st Circuit, Federal Claims)
+- Automatic judge name extraction from opinion text
+- Full-text search across all opinions
 
 ### 📄 Document Processing (Haystack Integration)
 - 4-level document hierarchy with parent-child relationships
@@ -133,8 +142,16 @@ Data Compose combines multiple technologies to create a powerful document proces
                     ┌─────────▼─────────┐                    ┌───────────▼──────────┐
                     │    PostgreSQL     │                    │   Custom Nodes       │
                     │   Database        │                    │ - DeepSeek (Ollama)  │
-                    │                   │                    │ - Haystack Search    │
-                    └───────────────────┘                    └──────────────────────┘
+                    │ - court_data      │                    │ - Haystack Search    │
+                    │   schema          │                    │ - Hierarchical Sum.  │
+                    └─────────┬─────────┘                    └──────────────────────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │  Court Processor  │
+                    │ - Daily scraping  │
+                    │ - PDF extraction  │
+                    │ - Judge indexing  │
+                    └───────────────────┘
                               
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                          Optional Haystack Integration                           │
@@ -166,6 +183,13 @@ data_compose/
 │   └── favicon.ico
 ├── workflow_json/           # n8n workflow exports
 │   └── web_UI_basic        # Basic AI chat workflow
+├── court-processor/        # Court opinion scraper
+│   ├── processor.py       # Main scraping logic
+│   ├── pdf_processor.py   # PDF text extraction
+│   └── config/courts.yaml # Court configurations
+├── court-data/            # Scraped court data
+│   ├── pdfs/             # Downloaded PDF files
+│   └── logs/             # Processing logs
 └── n8n/                    # n8n extensions and configuration
     ├── custom-nodes/       # Custom node implementations
     │   ├── n8n-nodes-deepseek/     # DeepSeek AI integration
@@ -594,6 +618,37 @@ curl -X POST http://localhost:8000/get_by_stage \
 ```
 
 For detailed documentation, see `n8n/haystack_readme.md`
+
+### Court Opinion Processing
+
+The court processor automatically scrapes federal court opinions and organizes them by judge:
+
+#### Quick Start:
+
+```bash
+# Initialize court processor database
+docker-compose exec db psql -U postgres -d postgres -f /court-processor/scripts/init_db.sql
+
+# Manual scrape
+docker-compose exec court_processor python processor.py --court tax
+
+# Check results
+docker-compose exec db psql -U your_db_user -d your_db_name -c "SELECT * FROM court_data.judge_stats;"
+```
+
+#### Supported Courts:
+- **tax**: US Tax Court
+- **ca9**: Ninth Circuit Court of Appeals  
+- **ca1**: First Circuit Court of Appeals
+- **uscfc**: US Court of Federal Claims
+
+#### Features:
+- Automatic judge name extraction from PDF text
+- Daily scheduled scraping via cron
+- Full-text search across all opinions
+- Judge-based statistics and analytics
+
+For detailed documentation, see `court-processor/README.md`
 
 ## Troubleshooting
 
