@@ -28,7 +28,11 @@
     "format": "prettier nodes --write",
     "lint": "eslint nodes package.json",
     "lintfix": "eslint nodes package.json --fix",
-    "prepublishOnly": "pnpm build && pnpm lint -c .eslintrc.prepublish.js nodes package.json"
+    "prepublishOnly": "pnpm build && pnpm lint -c .eslintrc.prepublish.js nodes package.json",
+    "test": "node test/run-tests.js",
+    "test:unit": "node test/run-tests.js",
+    "test:integration": "node test/integration/test-ollama-api.js",
+    "test:quick": "node test/unit/test-node-structure.js"
   },
   "files": [
     "dist"

@@ -1,0 +1,201 @@
+HIERARCHICAL SUMMARIZATION NODE - EXPECTED INPUT STRUCTURE
+
+===============================================================================
+NODE: HierarchicalSummarization
+PATH: n8n/custom-nodes/n8n-nodes-hierarchicalSummarization/
+===============================================================================
+
+EXPECTED INPUT FORMATS:
+
+1. SINGLE DOCUMENT INPUT (from previous node)
+----------------------------------------
+{
+  json: {
+    content: "The full text content of the document goes here...",
+    metadata: {
+      source: "filename.txt",
+      author: "Optional Author",
+      date: "2024-01-01",
+      // ... any other optional metadata fields
+    }
+  }
+}
+
+Required Fields:
+- content (string): The text content to be summarized
+
+Optional Fields:
+- metadata (object): Any additional information about the document
+
+
+2. MULTIPLE DOCUMENTS INPUT (from previous node)
+-----------------------------------------
+[
+  {
+    json: {
+      content: "First document content...",
+      metadata: { source: "doc1.pdf" }
+    }
+  },
+  {
+    json: {
+      content: "Second document content...",
+      metadata: { source: "doc2.pdf" }
+    }
+  },
+  {
+    json: {
+      content: "Third document content...",
+      metadata: { source: "doc3.pdf" }
+    }
+  }
+]
+
+Note: Each item in the array must follow the single document structure
+
+
+3. DIRECTORY INPUT (via node parameters)
+-----------------------------------------
+Set in Node Configuration:
+- contentSource: "directory"
+- directoryPath: "/absolute/path/to/text/files/"
+
+The node will automatically:
+- Read all .txt files from the specified directory
+- Create a document structure for each file
+- Use filename as the source in metadata
+
+
+4. CONNECTED NODE INPUTS
+-----------------------------------------
+The node requires TWO additional connections:
+
+a) AI Language Model Connection:
+   - Any n8n AI node (OpenAI, Claude, Groq, etc.)
+   - Connected to the "AI Language Model" input
+   - Used for generating summaries
+
+b) Database Connection:
+   - PostgreSQL or compatible SQL database
+   - Connected to the "Database" input
+   - Used for storing hierarchical relationships
+
+
+PROCESSING WORKFLOW:
+==================
+
+1. Document Reception
+   - Receives documents via one of the three input methods
+   - Validates that 'content' field exists for each document
+
+2. Token Estimation
+   - Estimates tokens for each document (1 token ≈ 4 characters)
+   - Determines if chunking is needed based on batchSize parameter
+
+3. Chunking (if needed)
+   - Splits large documents at sentence boundaries
+   - Maintains context between chunks
+   - Each chunk gets a reference to its parent document
+
+4. Recursive Summarization
+   - Level 0: Original documents/chunks
+   - Level 1: Summaries of groups of Level 0 documents
+   - Level 2+: Summaries of previous level summaries
+   - Continues until only one summary remains
+
+5. Database Storage
+   - Stores all documents and summaries with hierarchy relationships
+   - Tracks parent-child relationships
+   - Maintains processing status
+
+
+OUTPUT STRUCTURE:
+=================
+{
+  json: {
+    batchId: "550e8400-e29b-41d4-a716-446655440000",
+    finalSummary: "The comprehensive summary of all input documents...",
+    totalDocuments: 10,
+    hierarchyDepth: 3,
+    processingComplete: true
+  }
+}
+
+
+EXAMPLE WORKFLOW SETUP:
+======================
+
+1. Document Source Node (e.g., Read Files, HTTP Request, etc.)
+   ↓
+2. HierarchicalSummarization Node
+   ← AI Model Node (connected to AI input)
+   ← Database Node (connected to Database input)
+   ↓
+3. Output Node (e.g., Write to File, Send Email, etc.)
+
+
+KEY PARAMETERS:
+===============
+
+summaryPrompt: 
+  Default: "Summarize the following content:\n\n<c>{{content}}</c>"
+  Note: Must contain <c>{{content}}</c> placeholder
+
+contextPrompt:
+  Optional additional instructions for the AI
+  Example: "Focus on legal implications and key dates"
+
+batchSize:
+  Range: 100-32768 tokens
+  Default: 2048
+  Controls maximum content size before chunking
+
+contentSource:
+  Options: "previousNode" or "directory"
+  Determines input method
+
+databaseConfig:
+  Options: "connected", "credentials", or "manual"
+  How to connect to the database
+
+
+COMMON USE CASES:
+=================
+
+1. Legal Document Analysis
+   - Input: Multiple legal documents
+   - Output: Single comprehensive legal summary
+
+2. Research Paper Synthesis
+   - Input: Directory of research papers
+   - Output: Unified research overview
+
+3. Report Consolidation
+   - Input: Array of report sections
+   - Output: Executive summary
+
+4. Meeting Notes Aggregation
+   - Input: Multiple meeting transcripts
+   - Output: Key decisions and action items summary
+
+
+ERROR HANDLING:
+===============
+
+The node will fail if:
+- No 'content' field in input documents
+- Database connection fails
+- AI model connection fails
+- Token limit exceeded even after chunking
+- Directory path invalid or no .txt files found
+
+Error messages are descriptive and stored in the database for debugging.
+
+
+NOTES:
+======
+- Processing is atomic (all-or-nothing) using database transactions
+- Large files (>50MB) are handled with streaming to prevent memory issues
+- The node maintains document order when processing
+- Metadata is preserved throughout the hierarchy
+- Token counting uses approximation (1 token ≈ 4 characters)

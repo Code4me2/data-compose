@@ -1,0 +1,44 @@
+# Court configuration for opinion processing
+# Simplified from court-scraping-server configuration
+
+courts:
+  tax:
+    name: "United States Tax Court"
+    active: true
+    module: "tax"
+    
+  ca1:
+    name: "First Circuit Court of Appeals" 
+    active: true
+    module: "ca1"
+    
+  dc:
+    name: "District of Columbia"
+    active: true
+    module: "dc"
+    
+  bap1:
+    name: "First Circuit Bankruptcy Appellate Panel"
+    active: false  # Disabled by default
+    module: "bap1"
+    
+  ca9:
+    name: "Ninth Circuit Court of Appeals"
+    active: true
+    module: "ca9"
+    
+  cafc:
+    name: "Court of Appeals for the Federal Circuit"
+    active: true
+    module: "cafc"
+    
+  uscfc:
+    name: "United States Court of Federal Claims"
+    active: true
+    module: "uscfc"
+
+# Rate limiting settings
+rate_limiting:
+  default_delay: 2  # seconds between requests
+  max_retries: 3
+  timeout: 60  # seconds

@@ -1,0 +1,19 @@
+# Cron schedule for court opinion processing
+# This file is copied to /etc/cron.d/ in the Docker container
+
+# Daily court scraping schedule
+# m h dom mon dow user command
+
+# Tax Court - Daily at 2 AM
+0 2 * * * root cd /app && python3 processor.py --court tax >> /data/logs/cron.log 2>&1
+
+# First Circuit - Daily at 3 AM  
+0 3 * * * root cd /app && python3 processor.py --court ca1 >> /data/logs/cron.log 2>&1
+
+# DC Circuit - Daily at 4 AM
+0 4 * * * root cd /app && python3 processor.py --court dc >> /data/logs/cron.log 2>&1
+
+# Weekly full run - Sundays at 5 AM
+0 5 * * 0 root cd /app && python3 processor.py --all >> /data/logs/cron.log 2>&1
+
+# Empty line required at end of cron file

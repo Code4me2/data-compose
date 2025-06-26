@@ -1,0 +1,48 @@
+Below is a suggested library to use with react to more effectively implement the hierarchical summarization tree (via a postgres DB call). The visualizatoin should follow this structure:
+1.) The parent-child index (check custom hierarchicalSummarization node in n8n/custom-nodes to identify the syntax used) of summarizations from the summarization node will be indexed as follows: level 0 source documents, level 1 chunking, level 2 summaries of chunks, level 3 summaries of those summaries, etc.
+The visualization would ideally load in each layer as it is processed into the postgres database, but if that is too complex you can forget it for now. 
+The final product of hierarchical summarization is one final summary, which should be displayed on the leftmost side of the hierarchy. If dynamic loading of layers works, then the visualization should progressively traverse towards the left side of the hierarchy, till the static image is only the final summary.
+If there is no dynamic loading of summaries and chunking, then the entire tree should load with the initial focus on the final summary. Reference the existing documentation and code to articulate the best method of integration. Remember to keep to coding best principles, and maintain your codes readability and segmentation.
+
+For Hierarchical Tree Visualization
+Recommended: D3.js with React wrapper
+typescript// Using react-d3-tree (perfect for your use case)
+import Tree from 'react-d3-tree';
+
+const orgChart = {
+  name: 'Root sentence...',
+  children: [
+    {
+      name: 'Child sentence with longer text that wraps...',
+      children: [...]
+    }
+  ]
+};
+
+// Custom node rendering for sentences
+const renderCustomNode = ({ nodeDatum }) => (
+  <g>
+    <foreignObject width="200" height="100">
+      <div className="sentence-bubble">
+        {nodeDatum.name}
+      </div>
+    </foreignObject>
+  </g>
+);
+
+<Tree 
+  data={orgChart}
+  orientation="horizontal"
+  renderCustomNodeElement={renderCustomNode}
+  zoom={0.8}
+  enablePan
+  enableZoom
+/>
+Why react-d3-tree:
+
+Horizontal layout built-in
+Smooth zoom/pan out of the box
+Custom node rendering for text bubbles
+Fully local, no external dependencies
+TypeScript support
+Excellent performance

@@ -6,7 +6,7 @@ This document provides the complete setup and configuration for the Haystack/Ela
 
 ## Implementation Overview
 
-The Haystack integration uses direct Elasticsearch integration for optimal performance, providing document import from PostgreSQL, advanced search capabilities (BM25/Vector/Hybrid), and hierarchical document navigation.
+The Haystack integration uses direct Elasticsearch integration (without the full Haystack framework) for document processing. It provides document import from PostgreSQL, search capabilities (BM25/Vector/Hybrid), and hierarchical document navigation through a FastAPI service running in development mode.
 
 ## Architecture
 
@@ -24,7 +24,7 @@ data_compose/                    # Root directory
 │   ├── docker-compose.haystack.yml  # Supplementary Haystack services
 │   ├── haystack-service/
 │   │   ├── Dockerfile
-│   │   ├── haystack_service.py         # Main API implementation
+│   │   ├── haystack_service.py         # Main API implementation (7 endpoints)
 │   │   ├── elasticsearch_setup.py
 │   │   └── requirements-minimal.txt    # Active requirements
 │   └── custom-nodes/
@@ -75,7 +75,7 @@ data_compose/                    # Root directory
 
 ## Service Endpoints
 
-The Haystack service provides the following endpoints:
+The Haystack service provides the following 7 endpoints:
 
 1. **`GET /health`** - Service health check
    - Returns: Elasticsearch connection status, document count, embedding model status
@@ -92,31 +92,29 @@ The Haystack service provides the following endpoints:
    - Input: Document ID, depth options
    - Returns: Parent and child documents
    
-5. **`POST /batch_hierarchy`** - Get hierarchy for multiple documents efficiently
-   - Input: Array of document IDs
-   - Returns: Hierarchy information for all documents in one request
-   
-6. **`GET /get_final_summary/{workflow_id}`** - Get final summary document
+5. **`GET /get_final_summary/{workflow_id}`** - Get final summary document
    - Returns: The top-level summary for a workflow with tree metadata
    
-7. **`GET /get_complete_tree/{workflow_id}`** - Get complete hierarchical tree
+6. **`GET /get_complete_tree/{workflow_id}`** - Get complete hierarchical tree
    - Returns: Full tree structure with configurable depth and content inclusion
    
-8. **`GET /get_document_with_context/{document_id}`** - Get document with navigation context
+7. **`GET /get_document_with_context/{document_id}`** - Get document with navigation context
    - Returns: Document content with breadcrumb path and sibling information
+
+**Note**: The `batch_hierarchy` endpoint is NOT implemented in the service, though it appears in the n8n node.
 
 ## Using the n8n Node
 
-The custom Haystack node provides 8 operations focused on search and retrieval:
+The custom Haystack node provides 8 operations (7 functional):
 
-1. **Import from Previous Node** - Import hierarchical documents from PostgreSQL
-2. **Search** - Hybrid/vector/BM25 search capabilities
-3. **Get Hierarchy** - Retrieve document relationships
-4. **Health Check** - Verify service status
-5. **Batch Hierarchy** - Get hierarchy for multiple documents
-6. **Get Final Summary** - Retrieve workflow final summary
-7. **Get Complete Tree** - Get full hierarchical structure
-8. **Get Document with Context** - Get document with navigation
+1. **Import from Previous Node** - Import hierarchical documents from PostgreSQL ✓
+2. **Search** - Hybrid/vector/BM25 search capabilities ✓
+3. **Get Hierarchy** - Retrieve document relationships ✓
+4. **Health Check** - Verify service status ✓
+5. **Batch Hierarchy** - Get hierarchy for multiple documents ✗ (NOT IMPLEMENTED)
+6. **Get Final Summary** - Retrieve workflow final summary ✓
+7. **Get Complete Tree** - Get full hierarchical structure ✓
+8. **Get Document with Context** - Get document with navigation ✓
 
 ### Integration with Hierarchical Summarization
 

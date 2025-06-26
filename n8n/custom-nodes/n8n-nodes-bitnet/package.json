@@ -23,7 +23,12 @@
     "dev": "tsc --watch",
     "lint": "eslint nodes --ext .ts",
     "lintfix": "eslint nodes --ext .ts --fix",
-    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.json"
+    "prepublishOnly": "npm run build && npm run lint -c .eslintrc.prepublish.json",
+    "test": "node test/run-tests.js",
+    "test:unit": "node test/run-tests.js",
+    "test:integration": "node test/integration/test-api.js",
+    "test:env": "node test/unit/test-env.js",
+    "test:quick": "node test/unit/test-node-structure.js"
   },
   "files": [
     "dist"
@@ -38,6 +43,7 @@
     "@types/node": "^16.11.26",
     "@typescript-eslint/eslint-plugin": "^5.29.0",
     "@typescript-eslint/parser": "^5.29.0",
+    "axios": "^1.9.0",
     "eslint": "^8.20.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-n8n-nodes-base": "^1.5.4",
