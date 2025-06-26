@@ -53,37 +53,42 @@ body {
 .app-container {
     max-width: var(--container-max-width);
     margin: 0 auto;
-    padding: 20px;
+    padding: 0;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
 }
 
-/* Header */
-.app-header {
+/* Home Header (moved from app header) */
+.home-header {
     text-align: center;
-    margin-bottom: 40px;
-    padding: 40px 0;
+    margin-bottom: 30px;
+    padding: 30px 0;
     background: var(--white);
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
 }
 
-.app-title {
+.home-title {
     font-size: 2.5rem;
     color: var(--primary-color);
     margin-bottom: 10px;
     font-weight: 300;
 }
 
-.app-subtitle {
+.home-subtitle {
     color: var(--text-secondary);
     font-size: 1.1rem;
 }
 
 /* Navigation */
 .app-nav {
-    margin-bottom: 30px;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: var(--light-bg);
+    padding: 10px 20px;
+    margin-bottom: 0;
 }
 
 .nav-tabs {
@@ -138,9 +143,15 @@ body {
     overflow: hidden;
 }
 
+/* Main Content Area */
+.app-main {
+    flex: 1;
+    padding: 0 20px;
+}
+
 .content-section {
     display: none;
-    padding: 40px;
+    padding: 20px;
     animation: fadeIn 0.3s ease-in;
 }
 
@@ -163,7 +174,7 @@ body {
 .section-subtitle {
     color: var(--text-secondary);
     text-align: center;
-    margin-bottom: 40px;
+    margin-bottom: 30px;
 }
 
 /* Feature Grid for Home */
