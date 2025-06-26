@@ -17,7 +17,7 @@ async function getAILanguageModel(executeFunctions: IExecuteFunctions): Promise<
     if (!languageModel || typeof languageModel.invoke !== 'function') {
       throw new Error(
         'No AI language model connected. Please connect an AI language model ' +
-        '(like BitNet, OpenAI, Anthropic, etc.) to the Language Model input.'
+        'to the Language Model input.'
       );
     }
     
