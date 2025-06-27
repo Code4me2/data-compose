@@ -30,6 +30,7 @@ docker-compose up -d
 
 ### 4. Access the application
 - **Web Interface**: http://localhost:8080
+- **Lawyer-Chat**: http://localhost:8080/chat
 - **n8n Workflows**: http://localhost:8080/n8n/
 
 ### 5. Import the basic workflow
@@ -91,8 +92,13 @@ Data Compose combines multiple technologies to create a powerful document proces
 - **Court Opinion Scraper** for automated judicial document collection
 - **Elasticsearch** and **Haystack-inspired** API for advanced document search and analysis
 - Modern **Single Page Application** frontend
+<<<<<<< HEAD
 - **Lawyer Chat** - Enterprise-grade legal AI assistant application
 - **Docker-based** microservices architecture with flexible deployment
+=======
+- **Lawyer-Chat** AI-powered legal assistant interface
+- **Docker-based** microservices architecture
+>>>>>>> ai-legal-ui-pr
 
 ## Key Features
 
@@ -145,6 +151,7 @@ Data Compose combines multiple technologies to create a powerful document proces
 │   (SPA, Port    │     │   (Port 8080)   │     │   (Port 5678)   │
 │    8080)        │     │  Reverse Proxy  │     │    Workflows    │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
+<<<<<<< HEAD
                                                           │
                               ┌───────────────────────────┴───────────────┐
                               │                                           │
@@ -161,6 +168,20 @@ Data Compose combines multiple technologies to create a powerful document proces
                     │ - PDF extraction  │
                     │ - Judge indexing  │
                     └───────────────────┘
+=======
+                              │                           │
+                    ┌─────────▼─────────┐                 │
+                    │   Lawyer-Chat     │                 │
+                    │  (Port 3000)      │◀────────────────┘
+                    │  AI Legal Asst.   │     Webhooks
+                    └───────────────────┘
+                              │
+                    ┌─────────▼─────────┐        ┌────────────────────┐
+                    │    PostgreSQL     │        │   Custom Nodes     │
+                    │   Database        │        │ - DeepSeek R1      │
+                    │                   │        │ - Haystack Search  │
+                    └───────────────────┘        └────────────────────┘
+>>>>>>> ai-legal-ui-pr
                               
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                          Optional Haystack Integration                           │

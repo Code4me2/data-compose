@@ -498,6 +498,7 @@ app.registerSection('newFeature', {
 
 The transformation successfully converted a collection of scattered, duplicated files into a cohesive, maintainable, and extensible application framework while preserving every aspect of the original functionality. The new architecture embodies the principle that the best solutions are both powerful and simple.
 
+<<<<<<< HEAD
 # Hierarchical Summarization Navigation
 
 ## Overview
@@ -520,6 +521,37 @@ The Hierarchical Summarization feature provides an advanced visualization and na
    - Left/Right arrows: Navigate between hierarchy levels (parent/child relationships)
    - Up/Down arrows: Navigate between siblings at the same level
    - Hover tooltips show preview of target nodes
+=======
+# Lawyer-Chat Integration
+
+## Overview
+The lawyer-chat application has been successfully integrated into data-compose as a containerized service. It's accessible at http://localhost:8080/chat and fully integrated with n8n webhooks.
+
+### Key Configuration Points
+1. **BasePath Deployment**: The application is served at `/chat` subpath
+2. **API Endpoints**: All API calls use `/chat/api/*` paths
+3. **Asset Paths**: All static assets (images, CSS, JS) use `/chat/*` paths
+4. **Authentication**: NextAuth configured with `/chat/api/auth` basePath
+5. **Webhook Integration**: Connected to n8n via internal Docker networking
+
+### Environment Variables
+The lawyer-chat service requires these environment variables in `.env`:
+- `NEXTAUTH_SECRET`: Secret for NextAuth session encryption
+- `N8N_API_KEY` and `N8N_API_SECRET`: For webhook authentication (if configured)
+- Email configuration variables for notifications (optional)
+
+### Docker Configuration
+- **Service Name**: lawyer-chat
+- **Internal Port**: 3000
+- **External Access**: Via nginx proxy at `/chat`
+- **Networks**: Connected to both frontend and backend networks
+- **Health Check**: Tests `/chat/api/csrf` endpoint
+
+### n8n Webhook
+- **Webhook ID**: `c188c31c-1c45-4118-9ece-5b6057ab5177`
+- **Workflow Name**: Basic_workflow
+- **Internal URL**: `http://n8n:5678/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177`
+>>>>>>> ai-legal-ui-pr
 
 2. **Keyboard Shortcuts**
    - `←` Navigate to parent level (toward final summary)

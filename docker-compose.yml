@@ -64,6 +64,7 @@ services:
       timeout: 10s
       retries: 3
 
+<<<<<<< HEAD
   court-processor:
     build:
       context: ./court-processor
@@ -80,6 +81,39 @@ services:
     networks:
       - backend
     restart: unless-stopped
+=======
+  lawyer-chat:
+    build: 
+      context: ./services/lawyer-chat
+      dockerfile: Dockerfile
+    container_name: lawyer-chat
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/lawyerchat
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - NEXTAUTH_URL=http://localhost:8080/chat
+      - NEXT_PUBLIC_NEXTAUTH_URL=http://localhost:8080/chat
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177
+      - N8N_API_KEY=${N8N_API_KEY}
+      - N8N_API_SECRET=${N8N_API_SECRET}
+      # Email config
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM=${SMTP_FROM}
+    depends_on:
+      - db
+      - n8n
+    networks:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/chat/api/csrf"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+>>>>>>> ai-legal-ui-pr
 
 volumes:
   postgres_data:
