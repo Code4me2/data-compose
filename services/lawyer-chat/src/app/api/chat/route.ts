@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
 
     // Prepare payload for n8n webhook with sanitized data
     const payload = {
+      action: 'public_chat',
       message: messageValidation.sanitized!,
       tools: Array.isArray(sanitizedBody.tools) ? sanitizedBody.tools.filter((t: unknown) => typeof t === 'string').slice(0, 5) : [], // Max 5 tools
       tool: sanitizedBody.tool || 'default', // Keep for backward compatibility
