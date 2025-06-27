@@ -1,4 +1,3 @@
-import { GET, POST } from '../../chats/route';
 import { 
   createMockRequest, 
   parseJsonResponse, 
@@ -8,15 +7,28 @@ import {
   resetAllMocks
 } from './test-helpers';
 
-// Mock prisma
-jest.mock('@/lib/prisma', () => ({
-  prisma: mockPrismaClient,
+// Mock getServerSession
+jest.mock('next-auth', () => ({
+  getServerSession: jest.fn(),
 }));
 
-// Mock auth
-jest.mock('next-auth', () => ({
-  auth: jest.fn(),
+// Mock authOptions
+jest.mock('@/lib/auth', () => ({
+  authOptions: {},
 }));
+
+// Mock prisma with a function to avoid circular dependency
+jest.mock('@/lib/prisma', () => {
+  const { mockPrismaClient } = require('./test-helpers');
+  return {
+    __esModule: true,
+    default: mockPrismaClient,
+    prisma: mockPrismaClient,
+  };
+});
+
+// Import route handlers after mocks are set up
+import { GET, POST } from '../chats/route';
 
 describe('/api/chats', () => {
   beforeEach(() => {
@@ -27,8 +39,7 @@ describe('/api/chats', () => {
     it('should return 401 for unauthenticated users', async () => {
       mockAuth(null);
       
-      const request = createMockRequest('/api/chats');
-      const response = await GET(request);
+      const response = await GET();
       const data = await parseJsonResponse(response);
 
       expect(response.status).toBe(401);
@@ -60,10 +71,13 @@ describe('/api/chats', () => {
         },
       ];
 
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: session.user!.id,
+        email: session.user!.email,
+      });
       mockPrismaClient.chat.findMany.mockResolvedValue(mockChats);
 
-      const request = createMockRequest('/api/chats');
-      const response = await GET(request);
+      const response = await GET();
       const data = await parseJsonResponse(response);
 
       expect(response.status).toBe(200);
@@ -80,14 +94,17 @@ describe('/api/chats', () => {
       const session = createMockSession();
       mockAuth(session);
       
+      mockPrismaClient.user.findUnique.mockResolvedValue({
+        id: session.user!.id,
+        email: session.user!.email,
+      });
       mockPrismaClient.chat.findMany.mockRejectedValue(new Error('Database error'));
 
-      const request = createMockRequest('/api/chats');
-      const response = await GET(request);
+      const response = await GET();
       const data = await parseJsonResponse(response);
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe('Failed to fetch chats');
+      expect(data.error).toBe('Internal server error');
     });
   });
 

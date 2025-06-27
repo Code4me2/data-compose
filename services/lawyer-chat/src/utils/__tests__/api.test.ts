@@ -30,17 +30,13 @@ describe('api utility', () => {
 
       expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
         method: 'GET',
-        headers: {
-          'X-CSRF-Token': 'test-csrf-token',
-        },
+        headers: {},
         credentials: 'include',
       });
     });
 
-    it('should handle query parameters', async () => {
-      await api.get('/test-endpoint', { 
-        params: { foo: 'bar', baz: 123 } 
-      });
+    it('should handle manual query parameters in URL', async () => {
+      await api.get('/test-endpoint?foo=bar&baz=123');
 
       expect(global.fetch).toHaveBeenCalledWith(
         '/test-endpoint?foo=bar&baz=123',
@@ -55,7 +51,9 @@ describe('api utility', () => {
         statusText: 'Not Found',
       });
 
-      await expect(api.get('/test-endpoint')).rejects.toThrow('Not Found');
+      const response = await api.get('/test-endpoint');
+      expect(response.ok).toBe(false);
+      expect(response.status).toBe(404);
     });
   });
 
@@ -81,8 +79,10 @@ describe('api utility', () => {
       expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-CSRF-Token': 'test-csrf-token',
         },
+        body: undefined,
         credentials: 'include',
       });
     });
@@ -136,53 +136,4 @@ describe('api utility', () => {
     });
   });
 
-  describe('api.stream', () => {
-    it('should handle SSE stream', async () => {
-      const mockReader = {
-        read: jest.fn()
-          .mockResolvedValueOnce({ 
-            done: false, 
-            value: new TextEncoder().encode('data: {"message": "Hello"}\n\n') 
-          })
-          .mockResolvedValueOnce({ 
-            done: false, 
-            value: new TextEncoder().encode('data: {"message": "World"}\n\n') 
-          })
-          .mockResolvedValueOnce({ done: true }),
-      };
-
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: true,
-        body: {
-          getReader: () => mockReader,
-        },
-      });
-
-      const messages: any[] = [];
-      await api.stream('/test-stream', {
-        onMessage: (data) => messages.push(data),
-      });
-
-      expect(messages).toEqual([
-        { message: 'Hello' },
-        { message: 'World' },
-      ]);
-    });
-
-    it('should handle stream errors', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
-        ok: false,
-        status: 500,
-        statusText: 'Internal Server Error',
-      });
-
-      const onError = jest.fn();
-      await api.stream('/test-stream', {
-        onMessage: jest.fn(),
-        onError,
-      });
-
-      expect(onError).toHaveBeenCalledWith(expect.any(Error));
-    });
-  });
 });

@@ -1,6 +1,6 @@
-import { POST as RegisterPOST } from '../../auth/register/route';
-import { POST as ForgotPasswordPOST } from '../../auth/forgot-password/route';
-import { POST as ResetPasswordPOST } from '../../auth/reset-password/route';
+import { POST as RegisterPOST } from '../auth/register/route';
+import { POST as ForgotPasswordPOST } from '../auth/forgot-password/route';
+import { POST as ResetPasswordPOST } from '../auth/reset-password/route';
 import { 
   createMockRequest, 
   parseJsonResponse, 
