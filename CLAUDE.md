@@ -551,7 +551,19 @@ The lawyer-chat service requires these environment variables in `.env`:
 - **Webhook ID**: `c188c31c-1c45-4118-9ece-5b6057ab5177`
 - **Workflow Name**: Basic_workflow
 - **Internal URL**: `http://n8n:5678/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177`
->>>>>>> ai-legal-ui-pr
+
+## Hierarchical Summarization Navigation
+
+### Navigation Features
+
+1. **Visual Hierarchy**
+   - **Level-based Color Coding**: Each hierarchy level has distinct colors:
+     - Level 0 (Source Documents): Light blue (#e3f2fd)
+     - Level 1 (Initial Summaries): Light green (#e8f5e9)
+     - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
+     - Level 3 (Final Summary): Light purple (#f3e5f5)
+   - **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
+   - **Active Path Highlighting**: Shows the relationship path between nodes
 
 2. **Keyboard Shortcuts**
    - `←` Navigate to parent level (toward final summary)

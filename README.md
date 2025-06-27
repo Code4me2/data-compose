@@ -92,13 +92,8 @@ Data Compose combines multiple technologies to create a powerful document proces
 - **Court Opinion Scraper** for automated judicial document collection
 - **Elasticsearch** and **Haystack-inspired** API for advanced document search and analysis
 - Modern **Single Page Application** frontend
-<<<<<<< HEAD
 - **Lawyer Chat** - Enterprise-grade legal AI assistant application
 - **Docker-based** microservices architecture with flexible deployment
-=======
-- **Lawyer-Chat** AI-powered legal assistant interface
-- **Docker-based** microservices architecture
->>>>>>> ai-legal-ui-pr
 
 ## Key Features
 
@@ -151,24 +146,6 @@ Data Compose combines multiple technologies to create a powerful document proces
 │   (SPA, Port    │     │   (Port 8080)   │     │   (Port 5678)   │
 │    8080)        │     │  Reverse Proxy  │     │    Workflows    │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-<<<<<<< HEAD
-                                                          │
-                              ┌───────────────────────────┴───────────────┐
-                              │                                           │
-                    ┌─────────▼─────────┐                    ┌───────────▼──────────┐
-                    │    PostgreSQL     │                    │   Custom Nodes       │
-                    │   Database        │                    │ - DeepSeek (Ollama)  │
-                    │ - court_data      │                    │ - Haystack Search    │
-                    │   schema          │                    │ - Hierarchical Sum.  │
-                    └─────────┬─────────┘                    └──────────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │  Court Processor  │
-                    │ - Daily scraping  │
-                    │ - PDF extraction  │
-                    │ - Judge indexing  │
-                    └───────────────────┘
-=======
                               │                           │
                     ┌─────────▼─────────┐                 │
                     │   Lawyer-Chat     │                 │
@@ -176,12 +153,15 @@ Data Compose combines multiple technologies to create a powerful document proces
                     │  AI Legal Asst.   │     Webhooks
                     └───────────────────┘
                               │
-                    ┌─────────▼─────────┐        ┌────────────────────┐
-                    │    PostgreSQL     │        │   Custom Nodes     │
-                    │   Database        │        │ - DeepSeek R1      │
-                    │                   │        │ - Haystack Search  │
-                    └───────────────────┘        └────────────────────┘
->>>>>>> ai-legal-ui-pr
+                              ├───────────────────────────┬───────────────────────────┐
+                              │                           │                           │
+                    ┌─────────▼─────────┐      ┌─────────▼─────────┐   ┌────────────▼────────────┐
+                    │    PostgreSQL     │      │  Court Processor  │   │   Custom Nodes          │
+                    │   Database        │      │ - Daily scraping  │   │ - DeepSeek (Ollama)     │
+                    │ - court_data      │      │ - PDF extraction  │   │ - Haystack Search       │
+                    │   schema          │      │ - Judge indexing  │   │ - Hierarchical Sum.     │
+                    │ - lawyerchat      │      └───────────────────┘   │ - BitNet                │
+                    └───────────────────┘                              └─────────────────────────┘
                               
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                          Optional Haystack Integration                           │

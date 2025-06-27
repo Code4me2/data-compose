@@ -64,7 +64,6 @@ services:
       timeout: 10s
       retries: 3
 
-<<<<<<< HEAD
   court-processor:
     build:
       context: ./court-processor
@@ -81,7 +80,7 @@ services:
     networks:
       - backend
     restart: unless-stopped
-=======
+
   lawyer-chat:
     build: 
       context: ./services/lawyer-chat
@@ -113,7 +112,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
->>>>>>> ai-legal-ui-pr
 
 volumes:
   postgres_data:
