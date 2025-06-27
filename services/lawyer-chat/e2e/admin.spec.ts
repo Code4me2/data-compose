@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers/auth';
+import { TEST_CREDENTIALS } from './test-config';
 
 test.describe('Admin Features', () => {
   test.beforeEach(async ({ page }) => {
     // Sign in as admin
-    await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+    await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
   });
 
   test.describe('Admin Dashboard Access', () => {
@@ -85,7 +86,7 @@ test.describe('Admin Features', () => {
       
       // Should filter results
       await expect(page.locator('tbody tr')).toHaveCount(1);
-      await expect(page.locator('td:has-text("mchand@reichmanjorgensen.com")')).toBeVisible();
+      await expect(page.locator(`td:has-text("${TEST_CREDENTIALS.admin.email}")`)).toBeVisible();
     });
 
     test('should export users to CSV', async ({ page }) => {
@@ -214,7 +215,7 @@ test.describe('Admin Features', () => {
       
       // Find a user row (not the admin's own account)
       const userRows = page.locator('tbody tr').filter({ 
-        hasNot: page.locator('td:has-text("mchand@reichmanjorgensen.com")') 
+        hasNot: page.locator(`td:has-text("${TEST_CREDENTIALS.admin.email}")`) 
       });
       
       if (await userRows.count() > 0) {

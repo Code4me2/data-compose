@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { TEST_CREDENTIALS } from './test-config';
 
 test.describe('Authentication', () => {
   test.describe('Sign In', () => {
@@ -6,8 +7,8 @@ test.describe('Authentication', () => {
       await page.goto('/auth/signin');
       
       // Fill in credentials
-      await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
-      await page.fill('input[name="password"]', 'SecureAdmin123!');
+      await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
+      await page.fill('input[name="password"]', TEST_CREDENTIALS.admin.password);
       
       // Submit form
       await page.click('button[type="submit"]');
@@ -149,7 +150,7 @@ test.describe('Authentication', () => {
       await page.goto('/auth/forgot-password');
       
       // Fill in email
-      await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
+      await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
       
       // Submit form
       await page.click('button[type="submit"]');
@@ -176,8 +177,8 @@ test.describe('Authentication', () => {
     test('should sign out successfully', async ({ page }) => {
       // First sign in
       await page.goto('/auth/signin');
-      await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
-      await page.fill('input[name="password"]', 'SecureAdmin123!');
+      await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
+      await page.fill('input[name="password"]', TEST_CREDENTIALS.admin.password);
       await page.click('button[type="submit"]');
       await page.waitForURL('/');
       
@@ -197,8 +198,8 @@ test.describe('Authentication', () => {
     test('should persist session on page reload', async ({ page }) => {
       // Sign in
       await page.goto('/auth/signin');
-      await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
-      await page.fill('input[name="password"]', 'SecureAdmin123!');
+      await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
+      await page.fill('input[name="password"]', TEST_CREDENTIALS.admin.password);
       await page.click('button[type="submit"]');
       await page.waitForURL('/');
       

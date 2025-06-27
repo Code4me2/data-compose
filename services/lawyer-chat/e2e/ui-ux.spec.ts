@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers/auth';
+import { TEST_CREDENTIALS } from './test-config';
 
 test.describe('UI/UX Features', () => {
   test.describe('Dark Mode', () => {
@@ -33,7 +34,7 @@ test.describe('UI/UX Features', () => {
     });
 
     test('should apply dark mode to all components', async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
       
       // Enable dark mode
       await page.click('button[aria-label*="Switch to dark mode"]');
@@ -93,7 +94,7 @@ test.describe('UI/UX Features', () => {
 
   test.describe('Sidebar Navigation', () => {
     test.beforeEach(async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
     });
 
     test('should expand and collapse sidebar', async ({ page }) => {
@@ -132,7 +133,7 @@ test.describe('UI/UX Features', () => {
 
   test.describe('Error Handling', () => {
     test('should show error for network failure', async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
       
       // Simulate network failure
       await page.route('**/api/chat', route => route.abort());
@@ -146,7 +147,7 @@ test.describe('UI/UX Features', () => {
     });
 
     test('should handle rate limiting', async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
       
       // Send multiple messages quickly
       const messageInput = page.locator('textarea[placeholder*="Type your legal question"]');
@@ -164,7 +165,7 @@ test.describe('UI/UX Features', () => {
     });
 
     test('should validate input length', async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
       
       const messageInput = page.locator('textarea[placeholder*="Type your legal question"]');
       
@@ -180,7 +181,7 @@ test.describe('UI/UX Features', () => {
 
   test.describe('Loading States', () => {
     test('should show loading indicator while sending message', async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
       
       // Send message
       await page.locator('textarea[placeholder*="Type your legal question"]').fill('Test message');
@@ -191,7 +192,7 @@ test.describe('UI/UX Features', () => {
     });
 
     test('should show typing indicator for AI response', async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
       
       // Send message
       await page.locator('textarea[placeholder*="Type your legal question"]').fill('Test message');
@@ -208,10 +209,10 @@ test.describe('UI/UX Features', () => {
       
       // Tab through form elements
       await page.keyboard.press('Tab'); // Focus email
-      await page.keyboard.type('mchand@reichmanjorgensen.com');
+      await page.keyboard.type(TEST_CREDENTIALS.admin.email);
       
       await page.keyboard.press('Tab'); // Focus password
-      await page.keyboard.type('SecureAdmin123!');
+      await page.keyboard.type(TEST_CREDENTIALS.admin.password);
       
       await page.keyboard.press('Tab'); // Focus submit button
       await page.keyboard.press('Enter'); // Submit form
@@ -230,7 +231,7 @@ test.describe('UI/UX Features', () => {
     });
 
     test('should announce dynamic content changes', async ({ page }) => {
-      await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+      await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
       
       // Send message
       await page.locator('textarea[placeholder*="Type your legal question"]').fill('Test message');
