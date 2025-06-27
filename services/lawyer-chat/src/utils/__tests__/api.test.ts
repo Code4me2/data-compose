@@ -1,0 +1,139 @@
+import { api } from '../api';
+
+// Mock the global fetch
+global.fetch = jest.fn();
+
+// Mock the csrf store
+jest.mock('@/store/csrf', () => ({
+  useCsrfStore: {
+    getState: () => ({
+      csrfToken: 'test-csrf-token',
+      fetchCsrfToken: jest.fn(),
+    }),
+  },
+}));
+
+describe('api utility', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+      text: async () => 'Success',
+      headers: new Headers(),
+    });
+  });
+
+  describe('api.get', () => {
+    it('should make GET request with correct headers', async () => {
+      await api.get('/test-endpoint');
+
+      expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
+        method: 'GET',
+        headers: {},
+        credentials: 'include',
+      });
+    });
+
+    it('should handle manual query parameters in URL', async () => {
+      await api.get('/test-endpoint?foo=bar&baz=123');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/test-endpoint?foo=bar&baz=123',
+        expect.any(Object)
+      );
+    });
+
+    it('should handle errors', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      });
+
+      const response = await api.get('/test-endpoint');
+      expect(response.ok).toBe(false);
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe('api.post', () => {
+    it('should make POST request with JSON body', async () => {
+      const data = { name: 'Test', value: 123 };
+      await api.post('/test-endpoint', data);
+
+      expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': 'test-csrf-token',
+        },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+    });
+
+    it('should handle null body', async () => {
+      await api.post('/test-endpoint');
+
+      expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': 'test-csrf-token',
+        },
+        body: undefined,
+        credentials: 'include',
+      });
+    });
+
+    it('should merge custom headers', async () => {
+      await api.post('/test-endpoint', { data: 'test' }, {
+        headers: { 'X-Custom': 'header' }
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': 'test-csrf-token',
+          'X-Custom': 'header',
+        },
+        body: JSON.stringify({ data: 'test' }),
+        credentials: 'include',
+      });
+    });
+  });
+
+  describe('api.put', () => {
+    it('should make PUT request', async () => {
+      const data = { id: 1, name: 'Updated' };
+      await api.put('/test-endpoint', data);
+
+      expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': 'test-csrf-token',
+        },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+    });
+  });
+
+  describe('api.delete', () => {
+    it('should make DELETE request', async () => {
+      await api.delete('/test-endpoint');
+
+      expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
+        method: 'DELETE',
+        headers: {
+          'X-CSRF-Token': 'test-csrf-token',
+        },
+        credentials: 'include',
+      });
+    });
+  });
+
+});
