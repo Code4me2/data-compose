@@ -213,8 +213,9 @@ describe('ErrorBoundary', () => {
 
   it('provides Go Home button for page-level errors', () => {
     // Mock window.location.href
-    delete (window as any).location;
-    window.location = { href: '' } as any;
+    const originalLocation = window.location;
+    delete (window as typeof window & { location?: Location }).location;
+    window.location = { href: '' } as Location;
 
     render(
       <ErrorBoundary level="page">
@@ -227,6 +228,9 @@ describe('ErrorBoundary', () => {
 
     fireEvent.click(goHomeButton);
     expect(window.location.href).toBe('/');
+    
+    // Restore original location
+    window.location = originalLocation;
   });
 });
 

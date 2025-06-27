@@ -158,7 +158,7 @@ describe('api utility', () => {
         },
       });
 
-      const messages: any[] = [];
+      const messages: Array<{ message: string }> = [];
       await api.stream('/test-stream', {
         onMessage: (data) => messages.push(data),
       });

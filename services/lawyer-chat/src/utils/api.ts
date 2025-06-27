@@ -69,7 +69,7 @@ export const api = {
   get: (url: string, options?: Omit<FetchOptions, 'method'>) => 
     apiFetch(url, { ...options, method: 'GET' }),
     
-  post: (url: string, body?: unknown, options?: Omit<FetchOptions, 'method' | 'body'>) => 
+  post: <T = unknown>(url: string, body?: T, options?: Omit<FetchOptions, 'method' | 'body'>) => 
     apiFetch(url, {
       ...options,
       method: 'POST',
@@ -80,7 +80,7 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined
     }),
     
-  put: (url: string, body?: unknown, options?: Omit<FetchOptions, 'method' | 'body'>) => 
+  put: <T = unknown>(url: string, body?: T, options?: Omit<FetchOptions, 'method' | 'body'>) => 
     apiFetch(url, {
       ...options,
       method: 'PUT',
@@ -94,7 +94,7 @@ export const api = {
   delete: (url: string, options?: Omit<FetchOptions, 'method'>) => 
     apiFetch(url, { ...options, method: 'DELETE' }),
     
-  patch: (url: string, body?: unknown, options?: Omit<FetchOptions, 'method' | 'body'>) => 
+  patch: <T = unknown>(url: string, body?: T, options?: Omit<FetchOptions, 'method' | 'body'>) => 
     apiFetch(url, {
       ...options,
       method: 'PATCH',

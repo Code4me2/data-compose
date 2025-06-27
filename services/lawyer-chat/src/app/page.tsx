@@ -10,6 +10,7 @@ import AnalyticsDropdown from '@/components/AnalyticsDropdown';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import DownloadButton from '@/components/DownloadButton';
+import AuthGuard from '@/components/AuthGuard';
 import { useSidebarStore } from '@/store/sidebar';
 import { getRandomMockCitation } from '@/utils/mockCitations';
 import { mockAnalyticsData } from '@/utils/mockAnalytics';
@@ -255,8 +256,8 @@ function LawyerChatContent() {
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
-    // Create new chat if needed (for logged-in users)
-    if (session?.user && !currentChatId && messages.length === 0) {
+    // Create new chat if needed
+    if (!currentChatId && messages.length === 0) {
       await createNewChat();
     }
 
@@ -507,7 +508,7 @@ function LawyerChatContent() {
             </div>
             
             <div className="flex items-center gap-2 relative z-50">
-              {messages.length > 0 && session && (
+              {messages.length > 0 && (
                 <DownloadButton 
                   onDownloadPDF={handleDownloadChatPDF}
                   onDownloadText={handleDownloadChatText}
@@ -593,48 +594,42 @@ function LawyerChatContent() {
                         </div>
                       )}
                       
-                      {/* Citation and Analytics Buttons - Show only for signed-in users after response is complete */}
+                      {/* Citation and Analytics Buttons - Show after response is complete */}
                       {message.sender === 'assistant' && message.text && !(isLoading && message.id === messages[messages.length - 1].id) && (
-                        session ? (
-                          <div className={`mt-3 w-full flex items-center gap-2`}>
-                            <button
-                              onClick={() => handleCitationClick()}
-                              className={`flex-1 px-4 py-2 rounded-lg transition-all duration-200 transform active:scale-95 ${
-                                isDarkMode 
-                                  ? 'bg-[#25262b] text-[#d1d1d1] hover:bg-[#404147] active:bg-[#505157]' 
-                                  : 'bg-[#E1C88E] text-[#004A84] hover:bg-[#C8A665] active:bg-[#B59552]'
-                              }`}
-                              style={{
-                                fontSize: '1.092rem', // 1.3x of text-sm (0.875rem × 1.3 = 1.1375rem)
-                                fontWeight: '600',
-                                letterSpacing: '0.05em'
-                              }}
+                        <div className={`mt-3 w-full flex items-center gap-2`}>
+                          <button
+                            onClick={() => handleCitationClick()}
+                            className={`flex-1 px-4 py-2 rounded-lg transition-all duration-200 transform active:scale-95 ${
+                              isDarkMode 
+                                ? 'bg-[#25262b] text-[#d1d1d1] hover:bg-[#404147] active:bg-[#505157]' 
+                                : 'bg-[#E1C88E] text-[#004A84] hover:bg-[#C8A665] active:bg-[#B59552]'
+                            }`}
+                            style={{
+                              fontSize: '1.092rem', // 1.3x of text-sm (0.875rem × 1.3 = 1.1375rem)
+                              fontWeight: '600',
+                              letterSpacing: '0.05em'
+                            }}
+                          >
+                            CITATIONS
+                          </button>
+                          
+                          {/* Analytics Button - Show only if analytics data exists */}
+                          {message.analytics && (
+                            <ErrorBoundary
+                              level="component"
+                              isolate
+                              fallback={
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                  Analytics unavailable
+                                </div>
+                              }
                             >
-                              CITATIONS
-                            </button>
-                            
-                            {/* Analytics Button - Show only if analytics data exists */}
-                            {message.analytics && (
-                              <ErrorBoundary
-                                level="component"
-                                isolate
-                                fallback={
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                    Analytics unavailable
-                                  </div>
-                                }
-                              >
-                                <AnalyticsDropdown 
-                                  data={message.analytics}
-                                />
-                              </ErrorBoundary>
-                            )}
-                          </div>
-                        ) : (
-                          <div className={`mt-3 text-center text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            <p>Sign in to access citations, analytics, and advanced tools</p>
-                          </div>
-                        )
+                              <AnalyticsDropdown 
+                                data={message.analytics}
+                              />
+                            </ErrorBoundary>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -692,25 +687,24 @@ function LawyerChatContent() {
                 disabled={false}
               />
               
-              {/* Tools Button and Selected Tools - Only for signed-in users */}
-              {session && (
-                <div className="absolute transition-all duration-500 flex items-center gap-2" style={{ 
-                  left: buttonPadding, 
-                  bottom: buttonPadding 
-                }}>
-                  <div className="relative tools-dropdown-container">
-                    <button
-                      onClick={() => setShowToolsDropdown(!showToolsDropdown)}
-                      className={`flex items-center justify-center ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
-                      aria-label="Select tool"
-                      title="Select tool"
-                      style={{
-                        width: buttonSize,
-                        height: buttonSize
-                      }}
-                    >
-                      <Wrench size={iconSize} />
-                    </button>
+              {/* Tools Button and Selected Tools */}
+              <div className="absolute transition-all duration-500 flex items-center gap-2" style={{ 
+                left: buttonPadding, 
+                bottom: buttonPadding 
+              }}>
+                <div className="relative tools-dropdown-container">
+                  <button
+                    onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+                    className={`flex items-center justify-center ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
+                    aria-label="Select tool"
+                    title="Select tool"
+                    style={{
+                      width: buttonSize,
+                      height: buttonSize
+                    }}
+                  >
+                    <Wrench size={iconSize} />
+                  </button>
                   
                   {/* Tools Dropdown */}
                   {showToolsDropdown && (
@@ -793,7 +787,6 @@ function LawyerChatContent() {
                   </div>
                 )}
               </div>
-              )}
               
               {/* Send Button - Inside input box */}
               <button
@@ -869,11 +862,13 @@ function LawyerChatContent() {
   );
 }
 
-// Export with error boundary wrapper
+// Export with error boundary and auth guard wrapper
 export default function LawyerChat() {
   return (
     <ErrorBoundary level="page">
-      <LawyerChatContent />
+      <AuthGuard>
+        <LawyerChatContent />
+      </AuthGuard>
     </ErrorBoundary>
   );
 }

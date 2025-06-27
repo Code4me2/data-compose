@@ -159,7 +159,11 @@ describe('logger utils', () => {
     });
 
     it('should handle circular references', () => {
-      const obj: any = { name: 'test' };
+      interface CircularObj {
+        name: string;
+        circular?: CircularObj;
+      }
+      const obj: CircularObj = { name: 'test' };
       obj.circular = obj;
       
       expect(() => sanitizeForLogging(obj)).not.toThrow();

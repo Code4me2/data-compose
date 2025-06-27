@@ -17,7 +17,7 @@ function SignInContent() {
   const [error, setError] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get('callbackUrl') || '/';
+  const callbackUrl = searchParams.get('callbackUrl') || '/chat';
   const urlError = searchParams.get('error');
   const { isDarkMode } = useSidebarStore();
 
@@ -213,28 +213,6 @@ function SignInContent() {
             </div>
           </div>
 
-          {/* Guest Access */}
-          <div className="mt-6">
-            <button
-              onClick={() => router.push(callbackUrl)}
-              className="w-full px-6 py-3 rounded-lg transition-colors text-sm font-medium"
-              style={{
-                backgroundColor: isDarkMode ? 'transparent' : '#E1C88E',
-                border: isDarkMode ? '2px solid #9CA3AF' : 'none',
-                color: isDarkMode ? '#9CA3AF' : '#004A84'
-              }}
-              onMouseEnter={(e) => {
-                if (!isDarkMode) (e.target as HTMLButtonElement).style.backgroundColor = '#C8A665';
-                else (e.target as HTMLButtonElement).style.backgroundColor = '#404147';
-              }}
-              onMouseLeave={(e) => {
-                if (!isDarkMode) (e.target as HTMLButtonElement).style.backgroundColor = '#E1C88E';
-                else (e.target as HTMLButtonElement).style.backgroundColor = 'transparent';
-              }}
-            >
-              Continue Without Signing In
-            </button>
-          </div>
         </div>
       </div>
     </>

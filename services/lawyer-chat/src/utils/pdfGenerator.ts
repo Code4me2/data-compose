@@ -104,7 +104,7 @@ export class PDFGenerator {
     const canvas = await html2canvas(element, {
       backgroundColor: '#ffffff',
       logging: false
-    } as any);
+    });
 
     // Calculate dimensions to fit on PDF
     const imgWidth = this.pageWidth - (2 * this.margin);
