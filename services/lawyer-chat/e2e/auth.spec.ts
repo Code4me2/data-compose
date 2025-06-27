@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_CREDENTIALS } from './test-config';
+import { TEST_CREDENTIALS } from './config';
 
 test.describe('Authentication', () => {
   test.describe('Sign In', () => {

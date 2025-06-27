@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers/auth';
 import path from 'path';
-import { TEST_CREDENTIALS } from './test-config';
+import { TEST_CREDENTIALS } from './config';
 
 test.describe('Export and Download Features', () => {
   test.beforeEach(async ({ page }) => {

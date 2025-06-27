@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { TEST_CREDENTIALS } from './test-config';
+import { TEST_CREDENTIALS } from './config';
 
 test.describe('Complete User Journeys', () => {
   test('new user onboarding flow', async ({ page }) => {
