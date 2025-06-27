@@ -498,30 +498,6 @@ app.registerSection('newFeature', {
 
 The transformation successfully converted a collection of scattered, duplicated files into a cohesive, maintainable, and extensible application framework while preserving every aspect of the original functionality. The new architecture embodies the principle that the best solutions are both powerful and simple.
 
-<<<<<<< HEAD
-# Hierarchical Summarization Navigation
-
-## Overview
-The Hierarchical Summarization feature provides an advanced visualization and navigation system for exploring document hierarchies with multiple levels of summarization.
-
-## Navigation Features
-
-### Visual Hierarchy
-- **Level-based Color Coding**: Each hierarchy level has distinct colors:
-  - Level 0 (Source Documents): Light blue (#e3f2fd)
-  - Level 1 (Initial Summaries): Light green (#e8f5e9)
-  - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
-  - Level 3 (Final Summary): Light purple (#f3e5f5)
-- **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
-- **Active Path Highlighting**: Shows the relationship path between nodes
-
-### Navigation Methods
-
-1. **Arrow Navigation**
-   - Left/Right arrows: Navigate between hierarchy levels (parent/child relationships)
-   - Up/Down arrows: Navigate between siblings at the same level
-   - Hover tooltips show preview of target nodes
-=======
 # Lawyer-Chat Integration
 
 ## Overview
@@ -547,12 +523,55 @@ The lawyer-chat service requires these environment variables in `.env`:
 - **Networks**: Connected to both frontend and backend networks
 - **Health Check**: Tests `/chat/api/csrf` endpoint
 
-### n8n Webhook
+### n8n Webhook Integration
 - **Webhook ID**: `c188c31c-1c45-4118-9ece-5b6057ab5177`
 - **Workflow Name**: Basic_workflow
 - **Internal URL**: `http://n8n:5678/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177`
 
+### CSRF Protection
+The lawyer-chat application implements comprehensive CSRF protection:
+
+1. **CSRF Token Generation**: Each session gets a unique CSRF token stored server-side
+2. **Token Validation**: All state-changing requests require valid CSRF tokens
+3. **API Endpoint**: `/chat/api/csrf` provides tokens to authenticated clients
+4. **Headers**: Token must be included in `X-CSRF-Token` header for POST/PUT/DELETE requests
+5. **Health Check**: The CSRF endpoint doubles as a health check for Docker
+
+### Action Field in Webhook Requests
+The lawyer-chat and other frontend components use an `action` field to specify the type of operation:
+
+```typescript
+// Chat request from lawyer-chat or AI Chat tab
+interface ChatRequest {
+  action: 'chat';
+  message: string;
+  timestamp: string;
+}
+
+// Hierarchical summarization request
+interface SummarizationRequest {
+  action: 'hierarchical_summarization';
+  content: string;
+  parameters: {
+    chunkSize: number;
+    maxLevels: number;
+    // ... other summarization parameters
+  };
+}
+
+// Delete summarization history
+interface DeleteRequest {
+  action: 'delete_summarization';
+  workflow_id: string;
+}
+```
+
+This pattern allows the n8n webhook to handle multiple types of requests from different frontend components, routing them to appropriate workflow nodes based on the action type.
+
 ## Hierarchical Summarization Navigation
+
+### Overview
+The Hierarchical Summarization feature provides an advanced visualization and navigation system for exploring document hierarchies with multiple levels of summarization.
 
 ### Navigation Features
 

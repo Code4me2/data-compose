@@ -122,7 +122,8 @@ Data Compose combines multiple technologies to create a powerful document proces
 - Visual workflow creation with n8n
 - Custom nodes for AI and document processing
 - Pre-configured workflows included
-- Webhook integration
+- Webhook integration with action-based routing
+- Unified webhook endpoint handling multiple request types
 
 ### 💼 Lawyer Chat Application
 - Enterprise-grade legal AI assistant
