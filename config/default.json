@@ -1,0 +1,76 @@
+{
+  "app": {
+    "name": "Data Compose",
+    "version": "1.0.0",
+    "environment": "development"
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8080,
+    "cors": {
+      "enabled": true,
+      "origins": ["http://localhost:8080", "http://localhost:3000"]
+    }
+  },
+  "services": {
+    "n8n": {
+      "url": "http://n8n:5678",
+      "healthEndpoint": "/healthz",
+      "webhookPath": "/webhook",
+      "credentials": {
+        "encryptionKey": "${N8N_ENCRYPTION_KEY}"
+      }
+    },
+    "database": {
+      "host": "db",
+      "port": 5432,
+      "name": "${DB_NAME}",
+      "user": "${DB_USER}",
+      "password": "${DB_PASSWORD}",
+      "ssl": false,
+      "poolSize": 20
+    },
+    "elasticsearch": {
+      "host": "elasticsearch",
+      "port": 9200,
+      "protocol": "http"
+    },
+    "haystack": {
+      "host": "haystack-api",
+      "port": 8000,
+      "protocol": "http"
+    }
+  },
+  "webhooks": {
+    "chat": {
+      "id": "c188c31c-1c45-4118-9ece-5b6057ab5177",
+      "description": "DeepSeek AI Chat Webhook"
+    },
+    "hierarchicalSummarization": {
+      "id": "4f9e5d3c-7b2a-4e1f-9c8d-6a5b4c3d2e1f",
+      "description": "Hierarchical Summarization Webhook"
+    }
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "directory": "logs",
+    "maxFiles": 10,
+    "maxSize": "10m"
+  },
+  "security": {
+    "helmet": {
+      "enabled": true
+    },
+    "rateLimit": {
+      "windowMs": 900000,
+      "max": 100
+    }
+  },
+  "features": {
+    "chat": true,
+    "hierarchicalSummarization": true,
+    "courtProcessor": true,
+    "haystack": true
+  }
+}

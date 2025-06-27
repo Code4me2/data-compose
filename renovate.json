@@ -1,0 +1,97 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases",
+    "group:allNonMajor"
+  ],
+  "timezone": "UTC",
+  "schedule": ["after 10pm every weekday", "before 5am every weekday", "every weekend"],
+  "labels": ["dependencies", "renovate"],
+  "assignees": [],
+  "reviewers": [],
+  "packageRules": [
+    {
+      "description": "Automatically merge minor and patch-level updates",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Disable automerge for major updates",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Group n8n-related packages",
+      "matchPackagePatterns": ["^n8n", "^@n8n"],
+      "groupName": "n8n packages",
+      "groupSlug": "n8n"
+    },
+    {
+      "description": "Group TypeScript packages",
+      "matchPackagePatterns": ["typescript", "^@types/"],
+      "groupName": "TypeScript packages",
+      "groupSlug": "typescript"
+    },
+    {
+      "description": "Group testing packages",
+      "matchPackagePatterns": ["jest", "playwright", "^@testing-library"],
+      "groupName": "Testing packages",
+      "groupSlug": "testing"
+    },
+    {
+      "description": "Group linting packages",
+      "matchPackagePatterns": ["eslint", "prettier", "husky", "lint-staged"],
+      "groupName": "Linting packages",
+      "groupSlug": "linting"
+    },
+    {
+      "description": "Security updates",
+      "matchDatasources": ["npm"],
+      "matchUpdateTypes": ["patch"],
+      "matchPackagePatterns": ["*"],
+      "prPriority": 10,
+      "labels": ["security"],
+      "automerge": true
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"],
+    "assignees": [],
+    "reviewers": [],
+    "prPriority": 20
+  },
+  "prConcurrentLimit": 10,
+  "prCreation": "immediate",
+  "rangeStrategy": "bump",
+  "postUpdateOptions": ["npmDedupe"],
+  "commitMessagePrefix": "chore(deps):",
+  "commitMessageAction": "update",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "npm": {
+    "minimumReleaseAge": "3 days"
+  },
+  "docker": {
+    "enabled": true,
+    "digest": {
+      "enabled": true
+    }
+  },
+  "regexManagers": [
+    {
+      "description": "Update n8n version in docker-compose files",
+      "fileMatch": ["^docker-compose\\.ya?ml$"],
+      "matchStrings": [
+        "n8nio/n8n:(?<currentValue>.*?)\\s"
+      ],
+      "depNameTemplate": "n8nio/n8n",
+      "datasourceTemplate": "docker"
+    }
+  ]
+}
