@@ -8,8 +8,8 @@ import { logger } from '@/utils/logger';
 export async function sendVerificationEmail(email: string, token: string) {
   const verificationUrl = `${process.env.NEXTAUTH_URL}/api/auth/verify?email=${encodeURIComponent(email)}&token=${token}`;
   
-  // For development/demo, just log the URL
-  if (process.env.NODE_ENV === 'development') {
+  // For development/demo, just log the URL unless ENABLE_EMAIL is set
+  if (process.env.NODE_ENV === 'development' && process.env.ENABLE_EMAIL !== 'true') {
     logger.emailDebug('VERIFICATION EMAIL', {
       To: email,
       'Verification URL': verificationUrl

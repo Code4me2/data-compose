@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  basePath: '/chat',
+  // basePath: '/chat',  // Commented out for local development
   async headers() {
     return [
       {

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Send, Wrench } from 'lucide-react';
+import { Send } from 'lucide-react';
 import DarkModeToggle from '@/components/DarkModeToggle';
 import TaskBar from '@/components/TaskBar';
 import CitationPanel from '@/components/CitationPanel';
@@ -199,20 +199,30 @@ function LawyerChatContent() {
   };
 
   const createNewChat = async () => {
-    if (!session?.user) return;
+    if (!session?.user) {
+      console.log('Cannot create chat - no session');
+      return null;
+    }
     
     try {
-      const response = await api.post('/api/chats', { title: 'New Chat' });
+      console.log('Creating new chat...');
+      const response = await api.post('/api/chats', {});
       
       if (response.ok) {
         const newChat = await response.json();
+        console.log('New chat created:', newChat.id);
         setCurrentChatId(newChat.id);
         setMessages([]);
         await fetchChatHistory();
+        return newChat.id; // Return the chat ID
+      } else {
+        console.error('Failed to create chat:', response.status);
       }
     } catch (error) {
       logger.error('Error creating chat', error);
+      console.error('Error creating chat:', error);
     }
+    return null;
   };
 
   const selectChat = async (chatId: string) => {
@@ -240,24 +250,46 @@ function LawyerChatContent() {
 
 
   const saveMessage = async (role: string, content: string, references: string[] = []) => {
-    if (!session?.user || !currentChatId) return;
+    console.log('saveMessage called:', { role, contentLength: content.length, currentChatId, hasSession: !!session?.user });
+    if (!session?.user || !currentChatId) {
+      console.log('Skipping message save - no session or chatId');
+      return;
+    }
+    
+    await saveMessageWithChatId(currentChatId, role, content, references);
+  };
+
+  const saveMessageWithChatId = async (chatId: string, role: string, content: string, references: string[] = []) => {
+    if (!session?.user || !chatId) {
+      console.log('Skipping message save - no session or chatId');
+      return;
+    }
     
     try {
-      await api.post(`/api/chats/${currentChatId}/messages`, { role, content, references });
+      console.log('Saving message to:', `/api/chats/${chatId}/messages`);
+      const response = await api.post(`/api/chats/${chatId}/messages`, { role, content, references });
+      console.log('Message save response:', response.status);
       
       // Update chat history to reflect new message
       await fetchChatHistory();
     } catch (error) {
-      logger.error('Error saving message', error, { chatId: currentChatId, role, content: content.substring(0, 50) });
+      logger.error('Error saving message', error, { chatId, role, content: content.substring(0, 50) });
+      console.error('Error saving message:', error);
     }
   };
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
+    // Use a ref to store the chat ID for this message exchange
+    let chatIdForMessage = currentChatId;
+
     // Create new chat if needed (for logged-in users)
     if (session?.user && !currentChatId && messages.length === 0) {
-      await createNewChat();
+      const newChatId = await createNewChat();
+      if (newChatId) {
+        chatIdForMessage = newChatId;
+      }
     }
 
     const userMessage: Message = {
@@ -269,8 +301,10 @@ function LawyerChatContent() {
 
     setMessages(prev => [...prev, userMessage]);
     
-    // Save user message to database
-    await saveMessage('user', inputText);
+    // Save user message to database using the correct chat ID
+    if (chatIdForMessage) {
+      await saveMessageWithChatId(chatIdForMessage, 'user', inputText);
+    }
     
     setInputText('');
     setIsLoading(true);
@@ -373,7 +407,9 @@ function LawyerChatContent() {
                       );
                     }
                     // Save the complete message
-                    await saveMessage('assistant', currentText, sources);
+                    if (chatIdForMessage) {
+                      await saveMessageWithChatId(chatIdForMessage, 'assistant', currentText, sources);
+                    }
                   }
                 } catch (e) {
                   logger.error('Error parsing SSE data', e, { line });
@@ -405,7 +441,9 @@ function LawyerChatContent() {
         );
         
         // Save assistant message to database
-        await saveMessage('assistant', assistantText, assistantReferences);
+        if (chatIdForMessage) {
+          await saveMessageWithChatId(chatIdForMessage, 'assistant', assistantText, assistantReferences);
+        }
       }
     } catch (error) {
       logger.error('Error sending message', error);
@@ -497,7 +535,7 @@ function LawyerChatContent() {
               {!isTaskBarExpanded && (
                 <div className="flex items-center gap-2">
                   <img 
-                    src="/chat/logo.png" 
+                    src="/logo.png" 
                     alt="AI Legal Logo" 
                     className="h-8 w-8 object-contain"
                   />
@@ -701,15 +739,32 @@ function LawyerChatContent() {
                   <div className="relative tools-dropdown-container">
                     <button
                       onClick={() => setShowToolsDropdown(!showToolsDropdown)}
-                      className={`flex items-center justify-center ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
+                      className={`flex items-center justify-center transition-colors`}
                       aria-label="Select tool"
                       title="Select tool"
                       style={{
+                        color: isDarkMode ? '#d1d1d1' : '#004A84',
                         width: buttonSize,
                         height: buttonSize
                       }}
                     >
-                      <Wrench size={iconSize} />
+                      <svg 
+                        width={iconSize * 1.4} 
+                        height={iconSize * 1.4} 
+                        viewBox="0 0 24 24" 
+                        fill="none"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        {/* Top slider track */}
+                        <line x1="4" y1="8" x2="20" y2="8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                        {/* Top slider knob (connected) */}
+                        <circle cx="14" cy="8" r="3" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
+                        
+                        {/* Bottom slider track */}
+                        <line x1="4" y1="16" x2="20" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                        {/* Bottom slider knob (connected) */}
+                        <circle cx="10" cy="16" r="3" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
+                      </svg>
                     </button>
                   
                   {/* Tools Dropdown */}

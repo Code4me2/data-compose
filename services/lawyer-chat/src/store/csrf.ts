@@ -13,7 +13,7 @@ export const useCsrfStore = create<CsrfStore>((set) => ({
   
   fetchCsrfToken: async () => {
     try {
-      const response = await fetch('/chat/api/csrf', {
+      const response = await fetch('/api/csrf', {
         method: 'GET',
         credentials: 'include'
       });

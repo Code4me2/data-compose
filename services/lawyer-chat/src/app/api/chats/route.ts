@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     const chat = await prisma.chat.create({
       data: {
         userId: user.id,
-        title: body.title || 'New Chat',
+        title: body.title || null,  // Will be set when first message is sent
         preview: body.preview || ''
       }
     });

@@ -42,20 +42,32 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
 
   // Fetch chat history for signed-in users
   useEffect(() => {
+    console.log('Session in TaskBar:', session);
     if (session?.user) {
+      console.log('User is logged in, fetching chat history...');
       fetchChatHistory();
+    } else {
+      console.log('No session/user, skipping chat history fetch');
     }
   }, [session]);
 
   const fetchChatHistory = async () => {
     try {
+      console.log('Fetching chat history...');
       const response = await api.get('/api/chats');
+      console.log('Chat history response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('Chat history data:', data);
         setChatHistory(data);
+      } else {
+        console.error('Failed to fetch chat history:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
       }
     } catch (error) {
       logger.error('Error fetching chat history', error);
+      console.error('Error fetching chat history:', error);
     }
   };
 
@@ -122,7 +134,7 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
                 {/* Logo and Title on the left */}
                 <div className="flex items-center gap-2">
                   <img 
-                    src="/chat/logo.png" 
+                    src="/logo.png" 
                     alt="AI Legal Logo" 
                     className="h-8 w-8 object-contain"
                   />
@@ -363,7 +375,7 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
                                 }`}
                               >
                                 <div className={`text-sm font-medium truncate`}>
-                                  {chat.title || 'Untitled Chat'}
+                                  {chat.title || chat.preview?.substring(0, 40) + '...' || 'New Chat'}
                                 </div>
                                 <div className={`text-xs mt-0.5 ${
                                   isDarkMode ? 'text-gray-500' : 'text-gray-400'

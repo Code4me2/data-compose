@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { generateChatTitle } from '@/utils/chatTitle';
 
 // POST /api/chats/[id]/messages - Add message to chat
 export async function POST(
@@ -59,11 +60,14 @@ export async function POST(
 
     // Update chat preview and timestamp
     if (body.role === 'user' && !chat.preview) {
+      // Generate a smart title based on the first user message
+      const smartTitle = generateChatTitle(body.content);
+      
       await prisma.chat.update({
         where: { id: chatId },
         data: {
           preview: body.content.substring(0, 100),
-          title: chat.title || body.content.substring(0, 50) + '...'
+          title: smartTitle
         }
       });
     } else {

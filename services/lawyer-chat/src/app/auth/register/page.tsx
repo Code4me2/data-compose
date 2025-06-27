@@ -116,7 +116,7 @@ export default function Register() {
           {/* Logo and Header */}
           <div className="text-center mb-10">
             <img 
-              src="/chat/logo.png" 
+              src="/logo.png" 
               alt="AI Legal Logo" 
               className="mx-auto mb-4 h-20 w-20 object-contain"
             />
