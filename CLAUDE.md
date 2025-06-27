@@ -498,28 +498,35 @@ app.registerSection('newFeature', {
 
 The transformation successfully converted a collection of scattered, duplicated files into a cohesive, maintainable, and extensible application framework while preserving every aspect of the original functionality. The new architecture embodies the principle that the best solutions are both powerful and simple.
 
-# Outstanding Issue: Chat Context Management
+# Lawyer-Chat Integration
 
-## Problem
-The DeepSeek node in n8n currently sends isolated messages without conversation context. Each message to the AI has no memory of previous exchanges.
+## Overview
+The lawyer-chat application has been successfully integrated into data-compose as a containerized service. It's accessible at http://localhost:8080/chat and fully integrated with n8n webhooks.
 
-## Solution Required
-**DeepSeek Node Modification** - Change the node to use Ollama's `/api/chat` endpoint instead of `/api/generate`:
+### Key Configuration Points
+1. **BasePath Deployment**: The application is served at `/chat` subpath
+2. **API Endpoints**: All API calls use `/chat/api/*` paths
+3. **Asset Paths**: All static assets (images, CSS, JS) use `/chat/*` paths
+4. **Authentication**: NextAuth configured with `/chat/api/auth` basePath
+5. **Webhook Integration**: Connected to n8n via internal Docker networking
 
-1. **Update endpoint URL** (line 86): `http://host.docker.internal:11434/api/chat`
-2. **Change request format** (lines 121-127): 
-   ```javascript
-   {
-     model: 'deepseek-r1:1.5b',
-     messages: [{ role: 'user', content: prompt }],
-     // ... other params
-   }
-   ```
-3. **Update response parsing** (line 143): `data.message?.content || data.response`
+### Environment Variables
+The lawyer-chat service requires these environment variables in `.env`:
+- `NEXTAUTH_SECRET`: Secret for NextAuth session encryption
+- `N8N_API_KEY` and `N8N_API_SECRET`: For webhook authentication (if configured)
+- Email configuration variables for notifications (optional)
 
-**Note**: TypeScript compilation issues have been fixed. The node now properly imports `NodeConnectionType` and uses it for inputs/outputs.
+### Docker Configuration
+- **Service Name**: lawyer-chat
+- **Internal Port**: 3000
+- **External Access**: Via nginx proxy at `/chat`
+- **Networks**: Connected to both frontend and backend networks
+- **Health Check**: Tests `/chat/api/csrf` endpoint
 
-**Alternative**: Modify frontend to maintain conversation history and send full context with each request (higher bandwidth, more complex).
+### n8n Webhook
+- **Webhook ID**: `c188c31c-1c45-4118-9ece-5b6057ab5177`
+- **Workflow Name**: Basic_workflow
+- **Internal URL**: `http://n8n:5678/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177`
 
 The `/api/chat` approach is the lower bandwidth, architecturally correct solution as Ollama handles conversation memory server-side.
 
