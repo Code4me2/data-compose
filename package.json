@@ -1,0 +1,74 @@
+{
+  "name": "data-compose",
+  "version": "1.0.0",
+  "description": "Web application integrating n8n workflow automation with data processing capabilities",
+  "private": true,
+  "workspaces": [
+    "website",
+    "court-processor"
+  ],
+  "scripts": {
+    "dev": "docker-compose up -d && npm run dev:website",
+    "dev:website": "npm -w website run dev",
+    "dev:services": "docker-compose up -d",
+    "dev:down": "docker-compose down",
+    "build": "npm run build --workspaces --if-present",
+    "build:nodes": "npm run build --workspace=n8n/custom-nodes/*",
+    "test": "npm run test --workspaces --if-present",
+    "test:coverage": "npm run test:coverage --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "lint:fix": "npm run lint:fix --workspaces --if-present",
+    "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,md,yml,yaml}\"",
+    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules",
+    "clean:all": "find . -name 'node_modules' -type d -prune -exec rm -rf {} + && find . -name 'dist' -type d -prune -exec rm -rf {} +",
+    "install:all": "npm install && npm run build:nodes",
+    "prepare": "husky install",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:restart": "docker-compose restart",
+    "docker:logs": "docker-compose logs -f",
+    "docker:clean": "docker-compose down -v",
+    "db:init": "bash scripts/init-databases.sh",
+    "health:check": "node scripts/health-check.js"
+  },
+  "keywords": [
+    "n8n",
+    "workflow",
+    "automation",
+    "data-processing",
+    "docker"
+  ],
+  "author": "Data Compose Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.57.0",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.2.0",
+    "typescript": "^5.0.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "prettier": {
+    "semi": true,
+    "singleQuote": true,
+    "tabWidth": 2,
+    "trailingComma": "es5",
+    "printWidth": 100,
+    "bracketSpacing": true,
+    "arrowParens": "always"
+  }
+}

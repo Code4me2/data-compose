@@ -1,0 +1,114 @@
+version: 2
+updates:
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "npm"
+    assignees:
+      - "octocat"
+    reviewers:
+      - "octocat"
+    groups:
+      n8n:
+        patterns:
+          - "n8n*"
+          - "@n8n*"
+      typescript:
+        patterns:
+          - "typescript"
+          - "@types/*"
+      testing:
+        patterns:
+          - "jest*"
+          - "@testing-library/*"
+          - "playwright*"
+      linting:
+        patterns:
+          - "eslint*"
+          - "prettier*"
+          - "husky"
+          - "lint-staged"
+    ignore:
+      # Ignore specific dependencies
+      - dependency-name: "webpack"
+        versions: ["6.x"]
+    
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    labels:
+      - "dependencies"
+      - "docker"
+    
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "03:00"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    
+  # Website workspace
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "website"
+      
+  # Court processor workspace  
+  - package-ecosystem: "npm"
+    directory: "/court-processor"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "court-processor"
+      
+  # n8n custom nodes
+  - package-ecosystem: "npm"
+    directory: "/n8n/custom-nodes/n8n-nodes-deepseek"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "n8n-nodes"
+      
+  - package-ecosystem: "npm"
+    directory: "/n8n/custom-nodes/n8n-nodes-bitnet"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "n8n-nodes"
+      
+  - package-ecosystem: "npm"
+    directory: "/n8n/custom-nodes/n8n-nodes-hierarchicalSummarization"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "n8n-nodes"
+      
+  - package-ecosystem: "npm"
+    directory: "/n8n/custom-nodes/n8n-nodes-haystack"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "n8n-nodes"

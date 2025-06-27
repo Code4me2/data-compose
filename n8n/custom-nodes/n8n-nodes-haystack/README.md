@@ -1,22 +1,31 @@
 # n8n-nodes-haystack
 
-This is an n8n community node for integrating Haystack and Elasticsearch to enable advanced document search, hierarchical document management, and AI-powered legal document analysis workflows.
+[![n8n](https://img.shields.io/badge/n8n-compatible-blue.svg)](https://n8n.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Features
+An n8n community node for integrating Elasticsearch-based search and retrieval of hierarchical documents. Designed for legal document analysis and knowledge management workflows.
 
-- **Document Ingestion**: Batch process documents with hierarchy metadata
-- **Hybrid Search**: Combine keyword (BM25) and semantic (vector) search
-- **Hierarchy Management**: Track parent-child document relationships
-- **Legal Document Optimization**: Specialized for legal document analysis
+## 🌟 Features
 
-## Installation
+- 🔍 **Hybrid Search**: Combine keyword (BM25) and semantic (vector) search
+- 🌳 **Hierarchy Management**: Navigate parent-child document relationships
+- 📊 **Batch Operations**: Process multiple documents efficiently
+- 🎯 **Smart Field Mapping**: Automatically map fields from PostgreSQL queries
+- 📈 **Tree Visualization**: Get complete hierarchical structures
+- ⚡ **High Performance**: Direct Elasticsearch integration
 
-### In n8n
+## 📦 Installation
 
-This node is automatically loaded when placed in the custom nodes directory:
+### Option 1: Install in n8n
 
-```
+Place this node in your n8n custom nodes directory:
+
+```bash
+# Default location
 ~/.n8n/custom/n8n-nodes-haystack
+
+# Or in your n8n Docker volume
+./custom-nodes/n8n-nodes-haystack
 ```
 
 ### Development
@@ -35,22 +44,29 @@ This node is automatically loaded when placed in the custom nodes directory:
    npm link
    ```
 
-## Prerequisites
+## ⚙️ Prerequisites
 
-This node requires:
+- **Elasticsearch 8.x**: With vector search capabilities
+- **Haystack API Service**: FastAPI service (included in this repo)
+- **Docker**: For running the services
+- **n8n**: Version 1.0.0 or higher
 
-1. **Elasticsearch**: Version 8.x with vector search capabilities
-2. **Haystack Service**: FastAPI service running the Haystack framework
-3. **Docker**: For running the complete stack
+## Technical Details
 
-## Operations
+- **Embedding Model**: BAAI/bge-small-en-v1.5 (384 dimensions)
+- **Search Methods**: BM25 (keyword), Vector (semantic), Hybrid (combined)
+- **Service Implementation**: Direct Elasticsearch integration for optimal performance
+- **Memory Limits**: Batch operations optimized for large document sets
 
-### Ingest Documents
+## 🔧 Operations
 
-Ingest documents with hierarchy metadata into Elasticsearch.
+### Import from Previous Node
+
+Import documents from PostgreSQL query results into Elasticsearch.
 
 **Parameters:**
-- `Documents`: JSON array of documents to ingest
+- `Field Mapping`: Map fields from previous node to document structure
+- `Generate Embeddings`: Whether to generate embeddings (default: true)
 - `Haystack Service URL`: URL of the Haystack service (default: http://haystack-service:8000)
 
 ### Search
@@ -78,20 +94,46 @@ Retrieve document hierarchy and relationships.
 
 Check service connectivity and status.
 
-## Example Workflow
+## 💡 Example Workflow
 
-1. **Ingest Legal Documents**: Upload PDFs, transcripts, and briefs
-2. **Create Summaries**: Generate AI summaries linked to source documents
-3. **Search**: Find relevant cases using hybrid search
-4. **Explore Hierarchy**: Navigate document relationships
+```mermaid
+graph LR
+    A[PostgreSQL Query] --> B[Haystack Import]
+    B --> C[Search Documents]
+    C --> D[Get Hierarchy]
+    D --> E[Navigate Tree]
+```
 
-## Development
+1. Query hierarchical documents from PostgreSQL
+2. Import them with automatic field mapping
+3. Search using keywords or semantic similarity
+4. Navigate the document hierarchy
 
-To modify this node:
+## 🛠️ Development
 
-1. Edit TypeScript files in `nodes/`
-2. Run `npm run build` to compile
-3. Restart n8n to load changes
+```bash
+# Install dependencies
+npm install
+
+# Build the node
+npm run build
+
+# Watch for changes
+npm run dev
+
+# Run linter
+npm run lint
+```
+
+### Project Structure
+```
+├── nodes/
+│   └── HaystackSearch/
+│       ├── HaystackSearch.node.ts  # Main node logic
+│       └── haystack.svg            # Node icon
+├── package.json
+└── README.md
+```
 
 ## License
 

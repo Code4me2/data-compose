@@ -70,10 +70,10 @@ The application uses Docker Compose for container orchestration:
 Sensitive configuration is stored in the `.env` file:
 
 ```
-DB_USER=vel
+DB_USER=your_db_user
 DB_PASSWORD=your_secure_password_here
-DB_NAME=mydb
-N8N_ENCRYPTION_KEY=a_random_secure_encryption_key_here
+DB_NAME=your_db_name
+N8N_ENCRYPTION_KEY=your_secure_encryption_key_here
 ```
 
 ### NGINX Configuration
@@ -528,7 +528,76 @@ The lawyer-chat service requires these environment variables in `.env`:
 - **Workflow Name**: Basic_workflow
 - **Internal URL**: `http://n8n:5678/webhook/c188c31c-1c45-4118-9ece-5b6057ab5177`
 
-The `/api/chat` approach is the lower bandwidth, architecturally correct solution as Ollama handles conversation memory server-side.
+# Hierarchical Summarization Navigation
+
+## Overview
+The Hierarchical Summarization feature provides an advanced visualization and navigation system for exploring document hierarchies with multiple levels of summarization.
+
+## Navigation Features
+
+### Visual Hierarchy
+- **Level-based Color Coding**: Each hierarchy level has distinct colors:
+  - Level 0 (Source Documents): Light blue (#e3f2fd)
+  - Level 1 (Initial Summaries): Light green (#e8f5e9)
+  - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
+  - Level 3 (Final Summary): Light purple (#f3e5f5)
+- **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
+- **Active Path Highlighting**: Shows the relationship path between nodes
+
+### Navigation Methods
+
+1. **Arrow Navigation**
+   - Left/Right arrows: Navigate between hierarchy levels (parent/child relationships)
+   - Up/Down arrows: Navigate between siblings at the same level
+   - Hover tooltips show preview of target nodes
+
+2. **Keyboard Shortcuts**
+   - `←` Navigate to parent level (toward final summary)
+   - `→` Navigate to child level (toward source documents)
+   - `↑` Previous sibling at same level
+   - `↓` Next sibling at same level
+   - `Home` Jump directly to final summary
+   - `End` Jump to first source document
+   - `Ctrl+/` Open search dialog
+
+3. **Breadcrumb Navigation**
+   - Shows current path from final summary to current node
+   - Click any breadcrumb to jump directly to that node
+   - Color-coded breadcrumbs match level colors
+
+4. **Quick Jump Dropdown**
+   - Access via compass icon in top-right
+   - Nodes organized by hierarchy levels
+   - Shows preview of each node's content
+   - Searchable dropdown for quick access
+
+5. **Search Functionality**
+   - Full-text search across all nodes
+   - Highlighted matches in visualization
+   - Context preview showing surrounding text
+   - Click search results to navigate directly
+
+### Additional Features
+- **Minimap**: Interactive overview showing entire hierarchy with current viewport
+- **Zoom/Pan**: Mouse wheel zoom, click and drag to pan
+- **URL Bookmarking**: Direct links to specific nodes via URL hash
+- **Progressive Loading**: Handles large hierarchies efficiently
+- **Responsive Design**: Adapts to different screen sizes
+
+## Technical Implementation Notes
+
+### Navigation Bug Fix
+Fixed critical navigation logic where left/right arrow directions were reversed. The navigation now correctly:
+- Left arrow navigates to parent nodes (higher level, toward final summary)
+- Right arrow navigates to child nodes (lower level, toward source documents)
+
+### Performance Optimizations
+- Debounced zoom/pan operations for smoother interaction
+- Smart viewport culling for large hierarchies
+- Efficient path highlighting using D3.js selections
+
+### CSS Architecture
+All hierarchy levels use CSS custom properties for easy theming and consistency across the visualization.
 
 # DeepSeek Custom Node Details
 
@@ -557,27 +626,30 @@ npm run lint   # Code quality
 ```
 
 ### Known Limitations
-1. Currently uses `/api/generate` endpoint (stateless)
-2. No conversation context between messages
-3. TypeScript type definitions need updating for latest n8n
+1. Uses `/api/generate` endpoint (stateless, no conversation memory)
+2. TypeScript type definitions need updating for latest n8n
 
 ### Future Improvements
-1. Switch to `/api/chat` endpoint for conversation memory
-2. Add streaming response support
-3. Implement token usage tracking
-4. Add model selection dropdown
+1. Add streaming response support
+2. Implement token usage tracking
+3. Add model selection dropdown
+4. Consider frontend-based conversation history management
 
 # Haystack/Elasticsearch Integration
 
 ## Overview
 
-The project includes a comprehensive document processing system using Elasticsearch and a Haystack-inspired implementation for AI-powered document analysis, specifically designed for legal documents.
+The project includes a comprehensive document processing system using Elasticsearch and a Haystack-inspired implementation for AI-powered document analysis.
+
+**Pipeline Design**: Haystack works WITH HierarchicalSummarization, not instead of it:
+1. HierarchicalSummarization processes documents → PostgreSQL
+2. Haystack imports from PostgreSQL → Elasticsearch for search
 
 ### Architecture
 
 1. **Elasticsearch Service** (Port 9200)
    - Document storage with BM25 and vector search capabilities
-   - Custom legal document analyzer
+   - Custom document analyzer
    - Hierarchical document tracking
 
 2. **Haystack API Service** (Port 8000)
@@ -588,16 +660,15 @@ The project includes a comprehensive document processing system using Elasticsea
 
 3. **Custom n8n Node** (`n8n-nodes-haystack`)
    - Full integration with n8n workflows
-   - 10 Operations: Ingest, Search, Hierarchy, Health Check, Get By Stage, Update Status, Batch Hierarchy, Get Final Summary, Get Complete Tree, Get Document with Context
+   - 8 Operations: Import from Previous Node, Search, Get Hierarchy, Health Check, Batch Hierarchy, Get Final Summary, Get Complete Tree, Get Document with Context
 
 ### Important Implementation Note
 
-**Current Active Service**: `haystack_service_simple.py`
+**Current Active Service**: `haystack_service.py` (NOT haystack_service_simple.py which doesn't exist)
 - Uses direct Elasticsearch client (not full Haystack library)
-- Provides all documented features without Haystack dependencies
-- More reliable and maintainable than full Haystack integration
-- **10 endpoints** including tree navigation and workflow management
-- **10 operations** in the n8n node matching all service endpoints
+- Running with FastAPI development server (--reload flag, not production-ready)
+- **7 endpoints** implemented (missing batch_hierarchy)
+- **8 operations** in the n8n node (but "Batch Hierarchy" will fail as endpoint doesn't exist)
 
 ### Key Features
 
@@ -609,13 +680,17 @@ The project includes a comprehensive document processing system using Elasticsea
 2. **Search Capabilities**
    - **Hybrid Search**: Combines BM25 and vector search
    - **Vector Search**: Using BAAI/bge-small-en-v1.5 embeddings
-   - **BM25 Search**: Traditional keyword search with legal analyzer
+   - **BM25 Search**: Traditional keyword search with custom analyzer
 
-3. **API Endpoints**
-   - `POST /ingest` - Batch document ingestion
-   - `POST /search` - Multi-modal search
-   - `POST /hierarchy` - Document relationship queries
-   - `GET /health` - Service status
+3. **API Endpoints** (7 implemented)
+   - `POST /import_from_node` - Import documents from n8n node
+   - `POST /search` - Multi-modal search (BM25/Vector/Hybrid)
+   - `POST /hierarchy` - Get document relationships
+   - `GET /health` - Service health status
+   - `GET /get_final_summary/{workflow_id}` - Get workflow's final summary
+   - `GET /get_complete_tree/{workflow_id}` - Get full hierarchical tree
+   - `GET /get_document_with_context/{document_id}` - Get document with navigation context
+   - ~~`POST /batch_hierarchy`~~ - NOT IMPLEMENTED (defined in node but missing from service)
 
 ### Quick Test
 
@@ -623,15 +698,13 @@ The project includes a comprehensive document processing system using Elasticsea
 # Check service health
 curl http://localhost:8000/health | jq
 
-# Ingest a test document
-curl -X POST http://localhost:8000/ingest \
-  -H "Content-Type: application/json" \
-  -d '[{"content": "Test legal document", "metadata": {"source": "test.pdf"}, "document_type": "source_document", "hierarchy_level": 0}]'
+# Import a test document (note: /ingest endpoint doesn't exist, use n8n workflow instead)
+# Documents should be imported via the n8n Haystack node's "Import from Previous Node" operation
 
 # Search documents
 curl -X POST http://localhost:8000/search \
   -H "Content-Type: application/json" \
-  -d '{"query": "legal document", "top_k": 5, "use_hybrid": true}'
+  -d '{"query": "test document", "top_k": 5, "use_hybrid": true}'
 ```
 
 ### Setup Commands
@@ -651,3 +724,98 @@ cd n8n && ./start_haystack_services.sh
 - Complete feature documentation: `n8n/haystack_readme.md`
 - API Documentation: http://localhost:8000/docs
 - Archived planning/development docs: `n8n/archived-docs/`
+
+# Hierarchical Summarization Visualization
+
+## Overview
+The Hierarchical Summarization feature provides an advanced visualization and navigation system for exploring document hierarchies with multiple levels of summarization. This visualization was enhanced with smooth animations, keyboard navigation, search functionality, and real-time updates.
+
+## Key Features Implemented
+
+### Visual Hierarchy
+- **Level-based Color Coding**: Each hierarchy level has distinct colors:
+  - Level 0 (Source Documents): Light blue (#e3f2fd)
+  - Level 1 (Initial Summaries): Light green (#e8f5e9)
+  - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
+  - Level 3 (Final Summary): Light purple (#f3e5f5)
+- **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
+- **Active Path Highlighting**: Shows the relationship path between nodes
+
+### Navigation Methods
+
+1. **Arrow Navigation**
+   - Left/Right arrows: Navigate between hierarchy levels (parent/child relationships)
+   - Up/Down arrows: Navigate between siblings at the same level
+   - Hover tooltips show preview of target nodes
+
+2. **Keyboard Shortcuts**
+   - `←` Navigate to parent level (toward final summary)
+   - `→` Navigate to child level (toward source documents)
+   - `↑` Previous sibling at same level
+   - `↓` Next sibling at same level
+   - `Home` Jump directly to final summary
+   - `End` Jump to first source document
+   - `Ctrl+/` Open search dialog
+
+3. **Breadcrumb Navigation**
+   - Shows current path from final summary to current node
+   - Click any breadcrumb to jump directly to that node
+   - Color-coded breadcrumbs match level colors
+
+4. **Quick Jump Dropdown**
+   - Access via compass icon in top-right
+   - Nodes organized by hierarchy levels
+   - Shows preview of each node's content
+   - Searchable dropdown for quick access
+
+5. **Search Functionality**
+   - Full-text search across all nodes
+   - Highlighted matches in visualization
+   - Context preview showing surrounding text
+   - Click search results to navigate directly
+
+### Additional Features
+- **Minimap**: Interactive overview showing entire hierarchy with current viewport
+- **Zoom/Pan**: Mouse wheel zoom, click and drag to pan
+- **URL Bookmarking**: Direct links to specific nodes via URL hash
+- **Progressive Loading**: Handles large hierarchies efficiently
+- **Responsive Design**: Adapts to different screen sizes
+- **Real-time Updates**: Visual indicators for processing status with 2-second polling
+
+### History Management Features
+- **New Summarization Button**: Plus (+) button below the history clock icon in the main window
+  - Quickly start a new summarization without opening the history drawer
+  - Clears any active history selection and returns to the form view
+- **Delete History Items**: Right-click on any history item to delete
+  - Shows confirmation dialog before deletion
+  - Sends 'delete_summarization' action to n8n webhook
+  - Automatically switches to form view if deleted item was being viewed
+
+## Technical Implementation Details
+
+### Navigation Bug Fix
+Fixed critical navigation logic where left/right arrow directions were reversed. The navigation now correctly:
+- Left arrow navigates to parent nodes (higher level, toward final summary)
+- Right arrow navigates to child nodes (lower level, toward source documents)
+
+### Performance Optimizations
+- Debounced zoom/pan operations for smoother interaction
+- Smart viewport culling for large hierarchies
+- Efficient path highlighting using D3.js selections
+
+### Visual Enhancements
+- Smooth cubic bezier easing for node focus transitions
+- Animated dashed borders for active processing nodes
+- Opacity fading for non-focused nodes
+- Loading overlay for initial data fetch
+
+### CSS Architecture
+All hierarchy levels use CSS custom properties for easy theming and consistency across the visualization.
+
+## Future Enhancement Ideas
+- WebSocket support for true real-time updates
+- Canvas/WebGL rendering for very large hierarchies
+- Node clustering for better performance
+- Export visualization as image/PDF
+- Collaborative viewing with shared cursors
+

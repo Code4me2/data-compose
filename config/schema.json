@@ -1,0 +1,163 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Data Compose Configuration Schema",
+  "type": "object",
+  "required": ["app", "server", "services"],
+  "properties": {
+    "app": {
+      "type": "object",
+      "required": ["name", "version", "environment"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Application name"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "description": "Application version in semver format"
+        },
+        "environment": {
+          "type": "string",
+          "enum": ["development", "staging", "production"],
+          "description": "Application environment"
+        }
+      }
+    },
+    "server": {
+      "type": "object",
+      "required": ["host", "port"],
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "Server host"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "description": "Server port"
+        },
+        "cors": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "origins": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uri"
+              }
+            }
+          }
+        }
+      }
+    },
+    "services": {
+      "type": "object",
+      "required": ["n8n", "database"],
+      "properties": {
+        "n8n": {
+          "type": "object",
+          "required": ["url", "healthEndpoint"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri"
+            },
+            "healthEndpoint": {
+              "type": "string"
+            },
+            "webhookPath": {
+              "type": "string"
+            }
+          }
+        },
+        "database": {
+          "type": "object",
+          "required": ["host", "port", "name", "user"],
+          "properties": {
+            "host": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            },
+            "ssl": {
+              "type": "boolean"
+            },
+            "poolSize": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "webhooks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug", "trace"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["json", "text"]
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "helmet": {
+          "type": "object"
+        },
+        "rateLimit": {
+          "type": "object",
+          "properties": {
+            "windowMs": {
+              "type": "integer"
+            },
+            "max": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    }
+  }
+}
