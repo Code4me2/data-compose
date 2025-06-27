@@ -64,31 +64,6 @@ services:
       timeout: 10s
       retries: 3
 
-  legal-chat:
-    build: ./lawyer-chat
-    ports:
-      - "3001:3001"
-    environment:
-      - DATABASE_URL=${LEGAL_CHAT_DATABASE_URL:-postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/legal_chat}
-      - NEXTAUTH_URL=${LEGAL_CHAT_NEXTAUTH_URL:-http://localhost:8080/legal-chat}
-      - NEXTAUTH_SECRET=${LEGAL_CHAT_NEXTAUTH_SECRET}
-      - EMAIL_SERVER=${LEGAL_CHAT_EMAIL_SERVER}
-      - EMAIL_FROM=${LEGAL_CHAT_EMAIL_FROM:-noreply@legal-chat.local}
-      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/legal-chat
-      - BASE_PATH=/legal-chat
-      - NODE_ENV=production
-    depends_on:
-      - db
-      - n8n
-    networks:
-      - backend
-      - frontend
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   court-processor:
     build:
       context: ./court-processor

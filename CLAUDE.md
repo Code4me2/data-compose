@@ -609,7 +609,7 @@ npm run lint   # Code quality
 
 ## Overview
 
-The project includes a comprehensive document processing system using Elasticsearch and a Haystack-inspired implementation for AI-powered document analysis, specifically designed for legal documents.
+The project includes a comprehensive document processing system using Elasticsearch and a Haystack-inspired implementation for AI-powered document analysis.
 
 **Pipeline Design**: Haystack works WITH HierarchicalSummarization, not instead of it:
 1. HierarchicalSummarization processes documents → PostgreSQL
@@ -619,7 +619,7 @@ The project includes a comprehensive document processing system using Elasticsea
 
 1. **Elasticsearch Service** (Port 9200)
    - Document storage with BM25 and vector search capabilities
-   - Custom legal document analyzer
+   - Custom document analyzer
    - Hierarchical document tracking
 
 2. **Haystack API Service** (Port 8000)
@@ -650,7 +650,7 @@ The project includes a comprehensive document processing system using Elasticsea
 2. **Search Capabilities**
    - **Hybrid Search**: Combines BM25 and vector search
    - **Vector Search**: Using BAAI/bge-small-en-v1.5 embeddings
-   - **BM25 Search**: Traditional keyword search with legal analyzer
+   - **BM25 Search**: Traditional keyword search with custom analyzer
 
 3. **API Endpoints** (7 implemented)
    - `POST /import_from_node` - Import documents from n8n node
@@ -674,7 +674,7 @@ curl http://localhost:8000/health | jq
 # Search documents
 curl -X POST http://localhost:8000/search \
   -H "Content-Type: application/json" \
-  -d '{"query": "legal document", "top_k": 5, "use_hybrid": true}'
+  -d '{"query": "test document", "top_k": 5, "use_hybrid": true}'
 ```
 
 ### Setup Commands
@@ -788,3 +788,4 @@ All hierarchy levels use CSS custom properties for easy theming and consistency 
 - Node clustering for better performance
 - Export visualization as image/PDF
 - Collaborative viewing with shared cursors
+

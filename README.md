@@ -91,7 +91,8 @@ Data Compose combines multiple technologies to create a powerful document proces
 - **Court Opinion Scraper** for automated judicial document collection
 - **Elasticsearch** and **Haystack-inspired** API for advanced document search and analysis
 - Modern **Single Page Application** frontend
-- **Docker-based** microservices architecture
+- **Lawyer Chat** - Enterprise-grade legal AI assistant application
+- **Docker-based** microservices architecture with flexible deployment
 
 ## Key Features
 
@@ -121,6 +122,14 @@ Data Compose combines multiple technologies to create a powerful document proces
 - Custom nodes for AI and document processing
 - Pre-configured workflows included
 - Webhook integration
+
+### 💼 Lawyer Chat Application
+- Enterprise-grade legal AI assistant
+- Type-safe architecture with full TypeScript support
+- Flexible deployment with configurable base paths
+- Secure authentication with domain restrictions
+- Real-time streaming responses
+- Document citation panel
 
 ### 🎨 Modern Web Interface
 - Single Page Application (SPA)
@@ -190,6 +199,15 @@ data_compose/
 ├── court-data/            # Scraped court data
 │   ├── pdfs/             # Downloaded PDF files
 │   └── logs/             # Processing logs
+├── lawyer-chat/           # Enterprise legal AI assistant
+│   ├── src/
+│   │   ├── app/          # Next.js App Router
+│   │   ├── components/   # React components
+│   │   ├── lib/          # Type-safe utilities
+│   │   ├── types/        # TypeScript definitions
+│   │   └── hooks/        # Custom React hooks
+│   ├── prisma/           # Database schema
+│   └── scripts/          # Utility scripts
 └── n8n/                    # n8n extensions and configuration
     ├── custom-nodes/       # Custom node implementations
     │   ├── n8n-nodes-deepseek/     # DeepSeek AI integration
@@ -202,6 +220,64 @@ data_compose/
     ├── haystack-service/          # Haystack API implementation
     │   └── haystack_service.py    # Main service (7 endpoints)
     └── local-files/              # Persistent storage
+```
+
+## Configuration
+
+### Path Configuration (New!)
+
+The application now supports flexible deployment at any base path through environment variables:
+
+#### Setting the Base Path
+
+1. **Docker Compose** (Recommended):
+   ```yaml
+   services:
+     legal-chat:
+       environment:
+         - BASE_PATH=/legal-chat  # Deploy at /legal-chat
+   ```
+
+2. **Development**:
+   ```bash
+   BASE_PATH=/legal-chat npm run dev
+   ```
+
+3. **Production Build**:
+   ```bash
+   BASE_PATH=/legal-chat npm run build
+   BASE_PATH=/legal-chat npm start
+   ```
+
+#### Type-Safe Path System
+
+The lawyer-chat application includes a robust type-safe path configuration system:
+
+- **Automatic path prefixing** - All paths automatically include the BASE_PATH
+- **Type-safe API calls** - Full TypeScript support for all endpoints
+- **Runtime validation** - All API responses are validated
+- **Zero hardcoded paths** - Complete flexibility for deployment
+
+Example usage in code:
+```typescript
+import { buildApiUrl, apiClient } from '@/lib/paths';
+
+// All paths are automatically prefixed
+const response = await apiClient.get<Chat[]>('/api/chats');
+```
+
+### Environment Variables
+
+Create a `.env` file based on `.env.example`:
+
+```bash
+# Database
+DB_USER=your_db_user
+DB_PASSWORD=your_secure_password
+DB_NAME=your_db_name
+
+# n8n
+N8N_ENCRYPTION_KEY=your_encryption_key
 ```
 
 ## Development
