@@ -21,6 +21,7 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatHistory, setChatHistory] = useState<Chat[]>([]);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ chatId: string; title: string } | null>(null);
   const taskBarRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const { isDarkMode, isTaskBarExpanded, toggleTaskBar, setTaskBarExpanded } = useSidebarStore();
@@ -56,6 +57,25 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
       }
     } catch (error) {
       logger.error('Error fetching chat history', error);
+    }
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    try {
+      // For now, just remove from UI as requested
+      setChatHistory(prev => prev.filter(chat => chat.id !== chatId));
+      setDeleteConfirmation(null);
+      
+      // TODO: Add backend API call to actually delete the chat
+      // const response = await api.delete(`/api/chats/${chatId}`);
+      // if (!response.ok) {
+      //   // Revert on error
+      //   fetchChatHistory();
+      // }
+    } catch (error) {
+      logger.error('Error deleting chat', error);
+      // Refresh chat history on error
+      fetchChatHistory();
     }
   };
 
@@ -356,6 +376,13 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
                                     window.location.href = `/?chat=${chat.id}`;
                                   }
                                 }}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setDeleteConfirmation({ 
+                                    chatId: chat.id, 
+                                    title: chat.title || 'Untitled Chat' 
+                                  });
+                                }}
                                 className={`w-full text-left p-2 rounded-lg transition-colors ${
                                   isDarkMode 
                                     ? 'hover:bg-[#25262b] text-gray-300' 
@@ -505,6 +532,37 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
         </div>
       </div>
 
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className={`mx-4 p-6 rounded-lg shadow-xl max-w-sm w-full ${
+            isDarkMode ? 'bg-[#25262b] text-gray-100' : 'bg-white text-gray-900'
+          }`}>
+            <h3 className="text-lg font-semibold mb-3">Delete Chat?</h3>
+            <p className={`mb-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Are you sure you want to delete "{deleteConfirmation.title}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setDeleteConfirmation(null)}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  isDarkMode 
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteChat(deleteConfirmation.chatId)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </>
   );
