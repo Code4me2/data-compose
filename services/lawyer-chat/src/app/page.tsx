@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Send, Wrench } from 'lucide-react';
+import { Send, Wrench, Settings } from 'lucide-react';
 import DarkModeToggle from '@/components/DarkModeToggle';
 import TaskBar from '@/components/TaskBar';
 import CitationPanel from '@/components/CitationPanel';
@@ -515,6 +515,21 @@ function LawyerChatContent() {
                   label="Download Chat"
                   compact
                 />
+              )}
+              {/* Settings/Developer Dashboard Link */}
+              {session?.user && (
+                <a
+                  href="/chat/data-compose"
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  title="Developer Dashboard"
+                  aria-label="Developer Dashboard"
+                >
+                  <Settings size={20} />
+                </a>
               )}
               <div className="flex flex-col items-center gap-3 mr-2">
                 <img 
