@@ -68,16 +68,20 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
 
   const handleDeleteChat = async (chatId: string) => {
     try {
-      // For now, just remove from UI as requested
+      // Optimistically remove from UI for immediate feedback
+      const previousHistory = chatHistory;
       setChatHistory(prev => prev.filter(chat => chat.id !== chatId));
       setDeleteConfirmation(null);
       
-      // TODO: Add backend API call to actually delete the chat
-      // const response = await api.delete(`/api/chats/${chatId}`);
-      // if (!response.ok) {
-      //   // Revert on error
-      //   fetchChatHistory();
-      // }
+      // Make backend API call to permanently delete the chat
+      const response = await api.delete(`/api/chats/${chatId}`);
+      if (!response.ok) {
+        // Revert on error
+        logger.error('Failed to delete chat from backend', { chatId, status: response.status });
+        setChatHistory(previousHistory);
+        // Optionally show an error message to the user
+        alert('Failed to delete chat. Please try again.');
+      }
     } catch (error) {
       logger.error('Error deleting chat', error);
       // Refresh chat history on error
