@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Menu, Plus, LogOut, User, Search } from 'lucide-react';
+import { Menu, Plus, LogOut, User, Search, Trash2 } from 'lucide-react';
 import { useSidebarStore } from '@/store/sidebar';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { isToday, isYesterday, isThisWeek, isThisMonth, format } from 'date-fns';
@@ -22,24 +22,30 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatHistory, setChatHistory] = useState<Chat[]>([]);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ chatId: string; title: string } | null>(null);
+  const [showTrashIcon, setShowTrashIcon] = useState<string | null>(null);
   const taskBarRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const { isDarkMode, isTaskBarExpanded, toggleTaskBar, setTaskBarExpanded } = useSidebarStore();
   const { data: session } = useSession();
 
-  // Click outside detection for user menu only
+  // Click outside detection for user menu and trash icon
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
+      // Hide trash icon when clicking outside
+      const target = event.target as HTMLElement;
+      if (!target.closest('.chat-item-container')) {
+        setShowTrashIcon(null);
+      }
     };
 
-    if (showUserMenu) {
+    if (showUserMenu || showTrashIcon) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showUserMenu]);
+  }, [showUserMenu, showTrashIcon]);
 
   // Fetch chat history for signed-in users
   useEffect(() => {
@@ -367,37 +373,60 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
                           {chats
                             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                             .map((chat) => (
-                              <button
+                              <div
                                 key={chat.id}
-                                onClick={() => {
-                                  if (onChatSelect) {
-                                    onChatSelect(chat.id);
-                                  } else {
-                                    window.location.href = `/?chat=${chat.id}`;
-                                  }
-                                }}
-                                onContextMenu={(e) => {
-                                  e.preventDefault();
-                                  setDeleteConfirmation({ 
-                                    chatId: chat.id, 
-                                    title: chat.title || 'Untitled Chat' 
-                                  });
-                                }}
-                                className={`w-full text-left p-2 rounded-lg transition-colors ${
-                                  isDarkMode 
-                                    ? 'hover:bg-[#25262b] text-gray-300' 
-                                    : 'hover:bg-gray-100 text-gray-700'
-                                }`}
+                                className="chat-item-container relative"
                               >
-                                <div className={`text-sm font-medium truncate`}>
-                                  {chat.title || 'Untitled Chat'}
-                                </div>
-                                <div className={`text-xs mt-0.5 ${
-                                  isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                                }`}>
-                                  {format(new Date(chat.createdAt), 'h:mm a')}
-                                </div>
-                              </button>
+                                <button
+                                  onClick={() => {
+                                    if (onChatSelect) {
+                                      onChatSelect(chat.id);
+                                    } else {
+                                      window.location.href = `/?chat=${chat.id}`;
+                                    }
+                                  }}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    setShowTrashIcon(chat.id);
+                                  }}
+                                  className={`w-full text-left p-2 rounded-lg transition-colors ${
+                                    isDarkMode 
+                                      ? 'hover:bg-[#25262b] text-gray-300' 
+                                      : 'hover:bg-gray-100 text-gray-700'
+                                  }`}
+                                >
+                                  <div className={`text-sm font-medium truncate pr-8`}>
+                                    {chat.title || 'Untitled Chat'}
+                                  </div>
+                                  <div className={`text-xs mt-0.5 ${
+                                    isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                  }`}>
+                                    {format(new Date(chat.createdAt), 'h:mm a')}
+                                  </div>
+                                </button>
+                                
+                                {/* Trash icon that appears on right-click */}
+                                {showTrashIcon === chat.id && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowTrashIcon(null);
+                                      setDeleteConfirmation({ 
+                                        chatId: chat.id, 
+                                        title: chat.title || 'Untitled Chat' 
+                                      });
+                                    }}
+                                    className={`absolute top-2 right-2 p-1 rounded transition-all ${
+                                      isDarkMode 
+                                        ? 'bg-red-900/20 hover:bg-red-900/40 text-red-400' 
+                                        : 'bg-red-100 hover:bg-red-200 text-red-600'
+                                    }`}
+                                    aria-label="Delete chat"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
                             ))}
                         </div>
                       </div>
