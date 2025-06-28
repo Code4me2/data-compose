@@ -200,7 +200,7 @@ function LawyerChatContent() {
   };
 
   const createNewChat = async () => {
-    if (!session?.user) return;
+    if (!session?.user) return null;
     
     try {
       const response = await api.post('/api/chats', { title: 'New Chat' });
@@ -210,10 +210,12 @@ function LawyerChatContent() {
         setCurrentChatId(newChat.id);
         setMessages([]);
         await fetchChatHistory();
+        return newChat.id;
       }
     } catch (error) {
       logger.error('Error creating chat', error);
     }
+    return null;
   };
 
   const selectChat = async (chatId: string) => {
@@ -257,8 +259,10 @@ function LawyerChatContent() {
     if (!inputText.trim()) return;
 
     // Create new chat if needed
+    let sessionKey = currentChatId;
     if (!currentChatId && messages.length === 0) {
-      await createNewChat();
+      const newChatId = await createNewChat();
+      sessionKey = newChatId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     }
 
     const userMessage: Message = {
@@ -297,6 +301,7 @@ function LawyerChatContent() {
       const response = await api.post('/api/chat', {
         message: inputText,
         tools: selectedTools,
+        sessionKey: sessionKey || currentChatId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sessionId: session?.user?.email || 'anonymous',
         userId: session?.user?.email
       });

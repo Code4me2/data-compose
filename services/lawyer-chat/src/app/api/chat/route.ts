@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       message: messageValidation.sanitized!,
       tools: Array.isArray(sanitizedBody.tools) ? sanitizedBody.tools.filter((t: unknown) => typeof t === 'string').slice(0, 5) : [], // Max 5 tools
       tool: sanitizedBody.tool || 'default', // Keep for backward compatibility
+      sessionKey: sanitizedBody.sessionKey || sanitizedBody.sessionId || session.user?.email || 'anonymous',
       sessionId: session.user?.email || sanitizedBody.sessionId,
       userId: session.user?.email || sanitizedBody.userId,
       timestamp: new Date().toISOString(),
