@@ -507,23 +507,23 @@ function LawyerChatContent() {
               )}
             </div>
             
-            <div className="flex flex-col items-end gap-2 relative z-50">
-              <div className="flex items-center gap-2">
-                {messages.length > 0 && (
-                  <DownloadButton 
-                    onDownloadPDF={handleDownloadChatPDF}
-                    onDownloadText={handleDownloadChatText}
-                    label="Download Chat"
-                    compact
-                  />
-                )}
+            <div className="flex items-center gap-2 relative z-50">
+              {messages.length > 0 && (
+                <DownloadButton 
+                  onDownloadPDF={handleDownloadChatPDF}
+                  onDownloadText={handleDownloadChatText}
+                  label="Download Chat"
+                  compact
+                />
+              )}
+              <div className="flex flex-col items-center gap-3 mr-2">
                 <img 
                   src="/chat/logo.png" 
                   alt="Logo" 
                   className="h-8 w-8 object-contain"
                 />
+                <DarkModeToggle />
               </div>
-              <DarkModeToggle />
             </div>
           </div>
         </div>
