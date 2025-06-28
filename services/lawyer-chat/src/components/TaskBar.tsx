@@ -149,15 +149,10 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
           <div className={`flex items-center ${isTaskBarExpanded ? 'px-4 justify-between' : 'px-2 justify-center'} pt-2 pb-4`}>
             {isTaskBarExpanded ? (
               <>
-                {/* Logo and Title on the left */}
+                {/* Title on the left */}
                 <div className="flex items-center gap-2">
-                  <img 
-                    src="/chat/logo.png" 
-                    alt="AI Legal Logo" 
-                    className="h-8 w-8 object-contain"
-                  />
                   <h1 className="text-lg font-semibold" style={{ color: isDarkMode ? '#d1d1d1' : '#004A84' }}>
-                    AI Legal
+                    Aletheia-v0.1
                   </h1>
                 </div>
                 {/* Hamburger toggle on the right */}
@@ -191,7 +186,7 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
             )}
           </div>
           
-          {/* Divider line - positioned to align with AI Legal text */}
+          {/* Divider line - positioned to align with Aletheia text */}
           <div className={`absolute left-0 right-0 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} style={{ 
             height: '1px',
             bottom: '0'

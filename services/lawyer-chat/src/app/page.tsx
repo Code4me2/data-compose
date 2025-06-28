@@ -502,25 +502,27 @@ function LawyerChatContent() {
             <div className="flex items-center space-x-3">
               {!isTaskBarExpanded && (
                 <div className="flex items-center gap-2">
-                  <img 
-                    src="/chat/logo.png" 
-                    alt="AI Legal Logo" 
-                    className="h-8 w-8 object-contain"
-                  />
-                  <h1 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : ''}`} style={{ color: isDarkMode ? '#ffffff' : '#004A84' }}>AI Legal</h1>
+                  <h1 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : ''}`} style={{ color: isDarkMode ? '#ffffff' : '#004A84' }}>Aletheia-v0.1</h1>
                 </div>
               )}
             </div>
             
-            <div className="flex items-center gap-2 relative z-50">
-              {messages.length > 0 && (
-                <DownloadButton 
-                  onDownloadPDF={handleDownloadChatPDF}
-                  onDownloadText={handleDownloadChatText}
-                  label="Download Chat"
-                  compact
+            <div className="flex flex-col items-end gap-2 relative z-50">
+              <div className="flex items-center gap-2">
+                {messages.length > 0 && (
+                  <DownloadButton 
+                    onDownloadPDF={handleDownloadChatPDF}
+                    onDownloadText={handleDownloadChatText}
+                    label="Download Chat"
+                    compact
+                  />
+                )}
+                <img 
+                  src="/chat/logo.png" 
+                  alt="Logo" 
+                  className="h-8 w-8 object-contain"
                 />
-              )}
+              </div>
               <DarkModeToggle />
             </div>
           </div>
@@ -543,8 +545,13 @@ function LawyerChatContent() {
                 <h2 className="font-medium text-center" style={{ 
                   color: isDarkMode ? '#9CA3AF' : '#E1C88E',
                   fontSize: '2.52rem', // 3.6rem (text-6xl) * 0.7
+                  marginBottom: '1rem'
+                }}>Judicial Access Project</h2>
+                <p className="text-center" style={{
+                  color: isDarkMode ? '#6B7280' : '#9CA3AF',
+                  fontSize: '1.125rem', // text-lg
                   marginBottom: 'calc(125px + 2cm + 3cm)' // Input height (125px) + 2cm gap + 3cm additional
-                }}>Hi Welcome to AI Legal</h2>
+                }}>Bridge the vast landscape of judicial transcript data with targeted AI retrieval and citation</p>
               </div>
             </div>
           )}
