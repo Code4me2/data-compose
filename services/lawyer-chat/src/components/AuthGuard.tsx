@@ -18,7 +18,7 @@ export default function AuthGuard({ children, fallback }: AuthGuardProps) {
     
     if (!session) {
       // Redirect to sign-in page with callback URL
-      router.push('/chat/auth/signin?callbackUrl=/chat');
+      router.push('/auth/signin?callbackUrl=/chat');
     }
   }, [session, status, router]);
 

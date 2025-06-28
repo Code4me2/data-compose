@@ -17,7 +17,8 @@ export default function SafeMarkdown({ content, className }: SafeMarkdownProps) 
   
   const components: Components = {
     // Safe rendering of code blocks
-    code: ({ inline, className: codeClassName, children, ...props }) => {
+    code: (props: any) => {
+      const { inline, className: codeClassName, children } = props;
       const match = /language-(\w+)/.exec(codeClassName || '');
       
       if (!inline && match) {

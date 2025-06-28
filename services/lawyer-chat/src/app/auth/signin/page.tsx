@@ -25,7 +25,9 @@ function SignInContent() {
     const checkSession = async () => {
       const session = await getSession();
       if (session) {
-        router.push(callbackUrl);
+        // Ensure absolute path to prevent double /chat
+        const absoluteUrl = callbackUrl.startsWith('/') ? callbackUrl : `/${callbackUrl}`;
+        window.location.href = absoluteUrl;
       }
     };
     checkSession();
@@ -55,7 +57,9 @@ function SignInContent() {
         setError(result.error === 'CredentialsSignin' ? 'Invalid email or password' : result.error);
         setIsLoading(false);
       } else if (result?.ok) {
-        router.push(callbackUrl);
+        // Ensure absolute path to prevent double /chat
+        const absoluteUrl = callbackUrl.startsWith('/') ? callbackUrl : `/${callbackUrl}`;
+        window.location.href = absoluteUrl;
       }
     } catch (error) {
       logger.error('Sign in error', error);
