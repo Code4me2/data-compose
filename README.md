@@ -30,6 +30,7 @@ docker-compose up -d
 
 ### 4. Access the application
 - **Web Interface**: http://localhost:8080
+- **Lawyer-Chat**: http://localhost:8080/chat
 - **n8n Workflows**: http://localhost:8080/n8n/
 
 ### 5. Import the basic workflow
@@ -121,7 +122,8 @@ Data Compose combines multiple technologies to create a powerful document proces
 - Visual workflow creation with n8n
 - Custom nodes for AI and document processing
 - Pre-configured workflows included
-- Webhook integration
+- Webhook integration with action-based routing
+- Unified webhook endpoint handling multiple request types
 
 ### 💼 Lawyer Chat Application
 - Enterprise-grade legal AI assistant
@@ -145,22 +147,22 @@ Data Compose combines multiple technologies to create a powerful document proces
 │   (SPA, Port    │     │   (Port 8080)   │     │   (Port 5678)   │
 │    8080)        │     │  Reverse Proxy  │     │    Workflows    │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
-                                                          │
-                              ┌───────────────────────────┴───────────────┐
-                              │                                           │
-                    ┌─────────▼─────────┐                    ┌───────────▼──────────┐
-                    │    PostgreSQL     │                    │   Custom Nodes       │
-                    │   Database        │                    │ - DeepSeek (Ollama)  │
-                    │ - court_data      │                    │ - Haystack Search    │
-                    │   schema          │                    │ - Hierarchical Sum.  │
-                    └─────────┬─────────┘                    └──────────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │  Court Processor  │
-                    │ - Daily scraping  │
-                    │ - PDF extraction  │
-                    │ - Judge indexing  │
+                              │                           │
+                    ┌─────────▼─────────┐                 │
+                    │   Lawyer-Chat     │                 │
+                    │  (Port 3000)      │◀────────────────┘
+                    │  AI Legal Asst.   │     Webhooks
                     └───────────────────┘
+                              │
+                              ├───────────────────────────┬───────────────────────────┐
+                              │                           │                           │
+                    ┌─────────▼─────────┐      ┌─────────▼─────────┐   ┌────────────▼────────────┐
+                    │    PostgreSQL     │      │  Court Processor  │   │   Custom Nodes          │
+                    │   Database        │      │ - Daily scraping  │   │ - DeepSeek (Ollama)     │
+                    │ - court_data      │      │ - PDF extraction  │   │ - Haystack Search       │
+                    │   schema          │      │ - Judge indexing  │   │ - Hierarchical Sum.     │
+                    │ - lawyerchat      │      └───────────────────┘   │ - BitNet                │
+                    └───────────────────┘                              └─────────────────────────┘
                               
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                          Optional Haystack Integration                           │

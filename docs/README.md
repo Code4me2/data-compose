@@ -10,26 +10,16 @@ User and setup guides for different components:
 - [n8n Guide](./guides/n8n.md) - Workflow automation setup and usage
 - [Court Processor Guide](./guides/court-processor.md) - Court data processing system
 
-### 🏗️ [Architecture](./architecture/)
-System design and technical architecture documentation:
-- Component architecture
-- Data flow diagrams
-- Integration patterns
-- Technology decisions
-
 ### 💻 [Development](./development/)
 Developer documentation and contribution guidelines:
 - [Contributing Guide](./development/contributing.md) - How to contribute to the project
-- Development setup
-- Coding standards
-- Testing guidelines
+- [Project Improvements](./development/project-improvements.md) - Planned enhancements
 
-### 🔌 [API Documentation](./api/)
-API specifications and integration guides:
-- REST API endpoints
-- Webhook specifications
-- n8n node documentation
-- Integration examples
+### 📊 [Session Analysis](./session-analysis/)
+Technical analysis and implementation notes:
+- [Quick Reference](./session-analysis/QUICK_REFERENCE.md) - Key commands and configurations
+- [BitNet Standardization](./session-analysis/bitnet-standardization-summary.md) - AI node implementation
+- [Processing Time Estimates](./session-analysis/hs-processing-time-estimate.md) - Performance analysis
 
 ### 📦 [Archive](./archive/)
 Historical documentation and deprecated guides:
