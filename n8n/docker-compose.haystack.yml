@@ -47,6 +47,20 @@ services:
       - backend
     restart: unless-stopped
 
+  unstructured-service:
+    build:
+      context: ./unstructured-service
+      dockerfile: Dockerfile
+    container_name: unstructured-judicial
+    ports:
+      - "8880:8880"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./unstructured-service:/app
+    restart: unless-stopped
+
 volumes:
   elasticsearch_data:
     driver: local
