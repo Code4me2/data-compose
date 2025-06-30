@@ -21,6 +21,8 @@ services:
   
   db:
     image: postgres:latest
+    ports:
+      - "5432:5432"  # Expose PostgreSQL for local development
     environment:
       POSTGRES_PASSWORD: "${DB_PASSWORD}"  # Use environment variable
       POSTGRES_USER: "${DB_USER}"          # Use environment variable

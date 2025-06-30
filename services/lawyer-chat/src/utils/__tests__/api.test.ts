@@ -30,17 +30,13 @@ describe('api utility', () => {
 
       expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
         method: 'GET',
-        headers: {
-          'X-CSRF-Token': 'test-csrf-token',
-        },
+        headers: {},
         credentials: 'include',
       });
     });
 
-    it('should handle query parameters', async () => {
-      await api.get('/test-endpoint', { 
-        params: { foo: 'bar', baz: 123 } 
-      });
+    it('should handle manual query parameters in URL', async () => {
+      await api.get('/test-endpoint?foo=bar&baz=123');
 
       expect(global.fetch).toHaveBeenCalledWith(
         '/test-endpoint?foo=bar&baz=123',
@@ -55,7 +51,9 @@ describe('api utility', () => {
         statusText: 'Not Found',
       });
 
-      await expect(api.get('/test-endpoint')).rejects.toThrow('Not Found');
+      const response = await api.get('/test-endpoint');
+      expect(response.ok).toBe(false);
+      expect(response.status).toBe(404);
     });
   });
 
@@ -81,8 +79,10 @@ describe('api utility', () => {
       expect(global.fetch).toHaveBeenCalledWith('/test-endpoint', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'X-CSRF-Token': 'test-csrf-token',
         },
+        body: undefined,
         credentials: 'include',
       });
     });

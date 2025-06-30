@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { TEST_CREDENTIALS } from './config';
 
 test.describe('Complete User Journeys', () => {
   test('new user onboarding flow', async ({ page }) => {
@@ -56,8 +57,8 @@ test.describe('Complete User Journeys', () => {
   test('returning user research flow', async ({ page }) => {
     // 1. Sign in as existing user
     await page.goto('/auth/signin');
-    await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
-    await page.fill('input[name="password"]', 'SecureAdmin123!');
+    await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
+    await page.fill('input[name="password"]', TEST_CREDENTIALS.admin.password);
     await page.click('button[type="submit"]');
     
     await page.waitForURL('/');
@@ -157,8 +158,8 @@ test.describe('Complete User Journeys', () => {
   test('legal research workflow', async ({ page }) => {
     // 1. Sign in
     await page.goto('/auth/signin');
-    await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
-    await page.fill('input[name="password"]', 'SecureAdmin123!');
+    await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
+    await page.fill('input[name="password"]', TEST_CREDENTIALS.admin.password);
     await page.click('button[type="submit"]');
     await page.waitForURL('/');
     
@@ -212,7 +213,7 @@ test.describe('Complete User Journeys', () => {
     await page.click('text=Forgot your password?');
     
     // 2. Request password reset
-    await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
+    await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
     await page.click('button[type="submit"]');
     
     // 3. See confirmation message
@@ -235,7 +236,7 @@ test.describe('Complete User Journeys', () => {
     // 8. Should redirect to signin or show success
     if (page.url().includes('/auth/signin')) {
       // Try signing in with new password
-      await page.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
+      await page.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
       await page.fill('input[name="password"]', 'NewSecurePass123!');
       await page.click('button[type="submit"]');
       
@@ -250,8 +251,8 @@ test.describe('Complete User Journeys', () => {
     const page1 = await context1.newPage();
     
     await page1.goto('/auth/signin');
-    await page1.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
-    await page1.fill('input[name="password"]', 'SecureAdmin123!');
+    await page1.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
+    await page1.fill('input[name="password"]', TEST_CREDENTIALS.admin.password);
     await page1.click('button[type="submit"]');
     await page1.waitForURL('/');
     
@@ -265,8 +266,8 @@ test.describe('Complete User Journeys', () => {
     const page2 = await context2.newPage();
     
     await page2.goto('/auth/signin');
-    await page2.fill('input[name="email"]', 'mchand@reichmanjorgensen.com');
-    await page2.fill('input[name="password"]', 'SecureAdmin123!');
+    await page2.fill('input[name="email"]', TEST_CREDENTIALS.admin.email);
+    await page2.fill('input[name="password"]', TEST_CREDENTIALS.admin.password);
     await page2.click('button[type="submit"]');
     await page2.waitForURL('/');
     

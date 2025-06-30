@@ -1,6 +1,59 @@
 // Learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom'
 
+// Polyfill for Request in test environment
+if (typeof Request === 'undefined') {
+  global.Request = class Request {
+    constructor(url, init) {
+      this.url = url;
+      this.init = init;
+    }
+  };
+}
+
+// Polyfill for Response in test environment
+if (typeof Response === 'undefined') {
+  global.Response = class Response {
+    constructor(body, init) {
+      this.body = body;
+      this.init = init;
+      this.status = init?.status || 200;
+      this.statusText = init?.statusText || 'OK';
+      this.headers = init?.headers || {};
+    }
+    
+    async json() {
+      return JSON.parse(this.body);
+    }
+    
+    async text() {
+      return this.body;
+    }
+  };
+}
+
+// Polyfill for Headers
+if (typeof Headers === 'undefined') {
+  global.Headers = class Headers {
+    constructor(init) {
+      this._headers = {};
+      if (init) {
+        Object.entries(init).forEach(([key, value]) => {
+          this._headers[key.toLowerCase()] = value;
+        });
+      }
+    }
+    
+    get(name) {
+      return this._headers[name.toLowerCase()];
+    }
+    
+    set(name, value) {
+      this._headers[name.toLowerCase()] = value;
+    }
+  };
+}
+
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
   useRouter() {

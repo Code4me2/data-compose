@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers/auth';
 import path from 'path';
+import { TEST_CREDENTIALS } from './config';
 
 test.describe('Export and Download Features', () => {
   test.beforeEach(async ({ page }) => {
-    await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+    await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
   });
 
   test.describe('Chat Export', () => {

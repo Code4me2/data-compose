@@ -568,21 +568,28 @@ interface DeleteRequest {
 
 This pattern allows the n8n webhook to handle multiple types of requests from different frontend components, routing them to appropriate workflow nodes based on the action type.
 
-## Hierarchical Summarization Navigation
+# Hierarchical Summarization Navigation
 
-### Overview
+## Overview
 The Hierarchical Summarization feature provides an advanced visualization and navigation system for exploring document hierarchies with multiple levels of summarization.
 
-### Navigation Features
+## Navigation Features
 
-1. **Visual Hierarchy**
-   - **Level-based Color Coding**: Each hierarchy level has distinct colors:
-     - Level 0 (Source Documents): Light blue (#e3f2fd)
-     - Level 1 (Initial Summaries): Light green (#e8f5e9)
-     - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
-     - Level 3 (Final Summary): Light purple (#f3e5f5)
-   - **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
-   - **Active Path Highlighting**: Shows the relationship path between nodes
+### Visual Hierarchy
+- **Level-based Color Coding**: Each hierarchy level has distinct colors:
+  - Level 0 (Source Documents): Light blue (#e3f2fd)
+  - Level 1 (Initial Summaries): Light green (#e8f5e9)
+  - Level 2 (Intermediate Summaries): Light orange (#fff3e0)
+  - Level 3 (Final Summary): Light purple (#f3e5f5)
+- **Dynamic Node Sizing**: Higher-level summaries appear larger for visual emphasis
+- **Active Path Highlighting**: Shows the relationship path between nodes
+
+### Navigation Methods
+
+1. **Arrow Navigation**
+   - Left/Right arrows: Navigate between hierarchy levels (parent/child relationships)
+   - Up/Down arrows: Navigate between siblings at the same level
+   - Hover tooltips show preview of target nodes
 
 2. **Keyboard Shortcuts**
    - `←` Navigate to parent level (toward final summary)

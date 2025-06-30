@@ -92,7 +92,7 @@ Data Compose combines multiple technologies to create a powerful document proces
 - **Court Opinion Scraper** for automated judicial document collection
 - **Elasticsearch** and **Haystack-inspired** API for advanced document search and analysis
 - Modern **Single Page Application** frontend
-- **Lawyer Chat** - Enterprise-grade legal AI assistant application
+- **Lawyer-Chat** - Enterprise-grade legal AI assistant application
 - **Docker-based** microservices architecture with flexible deployment
 
 ## Key Features

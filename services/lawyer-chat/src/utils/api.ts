@@ -12,7 +12,7 @@ export async function apiFetch(url: string, options: FetchOptions = {}): Promise
   const { method = 'GET', headers = {}, includeAuth = true, ...restOptions } = options;
   
   // Prepend basePath to relative URLs
-  const basePath = '/chat';
+  const basePath = ''; // Removed for local development
   const fullUrl = url.startsWith('http') || url.startsWith('//') 
     ? url 
     : `${basePath}${url}`;

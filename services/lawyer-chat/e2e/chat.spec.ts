@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers/auth';
+import { TEST_CREDENTIALS } from './config';
 
 test.describe('Chat Functionality', () => {
   test.beforeEach(async ({ page }) => {
     // Sign in before each test
-    await signIn(page, 'mchand@reichmanjorgensen.com', 'SecureAdmin123!');
+    await signIn(page, TEST_CREDENTIALS.admin.email, TEST_CREDENTIALS.admin.password);
   });
 
   test.describe('Basic Chat', () => {

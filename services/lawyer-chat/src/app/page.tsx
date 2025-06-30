@@ -200,20 +200,28 @@ function LawyerChatContent() {
   };
 
   const createNewChat = async () => {
-    if (!session?.user) return null;
+    if (!session?.user) {
+      console.log('Cannot create chat - no session');
+      return null;
+    }
     
     try {
-      const response = await api.post('/api/chats', { title: 'New Chat' });
+      console.log('Creating new chat...');
+      const response = await api.post('/api/chats', {});
       
       if (response.ok) {
         const newChat = await response.json();
+        console.log('New chat created:', newChat.id);
         setCurrentChatId(newChat.id);
         setMessages([]);
         await fetchChatHistory();
-        return newChat.id;
+        return newChat.id; // Return the chat ID
+      } else {
+        console.error('Failed to create chat:', response.status);
       }
     } catch (error) {
       logger.error('Error creating chat', error);
+      console.error('Error creating chat:', error);
     }
     return null;
   };
@@ -243,27 +251,50 @@ function LawyerChatContent() {
 
 
   const saveMessage = async (role: string, content: string, references: string[] = []) => {
-    if (!session?.user || !currentChatId) return;
+    console.log('saveMessage called:', { role, contentLength: content.length, currentChatId, hasSession: !!session?.user });
+    if (!session?.user || !currentChatId) {
+      console.log('Skipping message save - no session or chatId');
+      return;
+    }
+    
+    await saveMessageWithChatId(currentChatId, role, content, references);
+  };
+
+  const saveMessageWithChatId = async (chatId: string, role: string, content: string, references: string[] = []) => {
+    if (!session?.user || !chatId) {
+      console.log('Skipping message save - no session or chatId');
+      return;
+    }
     
     try {
-      await api.post(`/api/chats/${currentChatId}/messages`, { role, content, references });
+      console.log('Saving message to:', `/api/chats/${chatId}/messages`);
+      const response = await api.post(`/api/chats/${chatId}/messages`, { role, content, references });
+      console.log('Message save response:', response.status);
       
       // Update chat history to reflect new message
       await fetchChatHistory();
     } catch (error) {
-      logger.error('Error saving message', error, { chatId: currentChatId, role, content: content.substring(0, 50) });
+      logger.error('Error saving message', error, { chatId, role, content: content.substring(0, 50) });
+      console.error('Error saving message:', error);
     }
   };
 
   const handleSend = async () => {
     if (!inputText.trim()) return;
 
-    // Create new chat if needed
-    let sessionKey = currentChatId;
-    if (!currentChatId && messages.length === 0) {
+    // Use a ref to store the chat ID for this message exchange
+    let chatIdForMessage = currentChatId;
+
+    // Create new chat if needed (for logged-in users)
+    if (session?.user && !currentChatId && messages.length === 0) {
       const newChatId = await createNewChat();
-      sessionKey = newChatId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      if (newChatId) {
+        chatIdForMessage = newChatId;
+      }
     }
+    
+    // Create session key for API call
+    let sessionKey = chatIdForMessage || currentChatId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const userMessage: Message = {
       id: Date.now(),
@@ -274,8 +305,10 @@ function LawyerChatContent() {
 
     setMessages(prev => [...prev, userMessage]);
     
-    // Save user message to database
-    await saveMessage('user', inputText);
+    // Save user message to database using the correct chat ID
+    if (chatIdForMessage) {
+      await saveMessageWithChatId(chatIdForMessage, 'user', inputText);
+    }
     
     setInputText('');
     setIsLoading(true);
@@ -379,7 +412,9 @@ function LawyerChatContent() {
                       );
                     }
                     // Save the complete message
-                    await saveMessage('assistant', currentText, sources);
+                    if (chatIdForMessage) {
+                      await saveMessageWithChatId(chatIdForMessage, 'assistant', currentText, sources);
+                    }
                   }
                 } catch (e) {
                   logger.error('Error parsing SSE data', e, { line });
@@ -411,7 +446,9 @@ function LawyerChatContent() {
         );
         
         // Save assistant message to database
-        await saveMessage('assistant', assistantText, assistantReferences);
+        if (chatIdForMessage) {
+          await saveMessageWithChatId(chatIdForMessage, 'assistant', assistantText, assistantReferences);
+        }
       }
     } catch (error) {
       logger.error('Error sending message', error);
@@ -502,7 +539,12 @@ function LawyerChatContent() {
             <div className="flex items-center space-x-3">
               {!isTaskBarExpanded && (
                 <div className="flex items-center gap-2">
-                  <h1 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : ''}`} style={{ color: isDarkMode ? '#ffffff' : '#004A84' }}>Aletheia-v0.1</h1>
+                  <img 
+                    src="/logo.png" 
+                    alt="AI Legal Logo" 
+                    className="h-8 w-8 object-contain"
+                  />
+                  <h1 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : ''}`} style={{ color: isDarkMode ? '#ffffff' : '#004A84' }}>AI Legal</h1>
                 </div>
               )}
             </div>

@@ -270,15 +270,15 @@ describe('DownloadButton', () => {
         />
       );
 
-      fireEvent.click(screen.getByRole('button'));
+      const mainButton = screen.getByRole('button', { name: /download/i });
+      fireEvent.click(mainButton);
       fireEvent.click(screen.getByText('Download as PDF'));
 
-      const button = screen.getByRole('button');
-      expect(button).toBeDisabled();
-      expect(button).toHaveClass('opacity-50', 'cursor-not-allowed');
+      expect(mainButton).toBeDisabled();
+      expect(mainButton).toHaveClass('opacity-50', 'cursor-not-allowed');
 
       await waitFor(() => {
-        expect(button).not.toBeDisabled();
+        expect(mainButton).not.toBeDisabled();
       });
     });
   });
