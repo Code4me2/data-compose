@@ -38,8 +38,8 @@ describe('CSRF utils', () => {
       expect(validateCSRFToken('', token)).toBe(false);
       expect(validateCSRFToken(token, '')).toBe(false);
       expect(validateCSRFToken('', '')).toBe(false);
-      expect(validateCSRFToken(null as any, token)).toBe(false);
-      expect(validateCSRFToken(token, undefined as any)).toBe(false);
+      expect(validateCSRFToken(null, token)).toBe(false);
+      expect(validateCSRFToken(token, undefined)).toBe(false);
     });
 
     it('should be case-sensitive', () => {

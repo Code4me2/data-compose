@@ -1,6 +1,7 @@
 'use client';
 
 import ReactMarkdown from 'react-markdown';
+import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ErrorBoundary } from './ErrorBoundary';
 import { AlertCircle } from 'lucide-react';
@@ -13,6 +14,80 @@ interface SafeMarkdownProps {
 
 export default function SafeMarkdown({ content, className }: SafeMarkdownProps) {
   const { isDarkMode } = useSidebarStore();
+  
+  const components: Components = {
+    // Safe rendering of code blocks
+    code: (props: any) => {
+      const { inline, className: codeClassName, children } = props;
+      const match = /language-(\w+)/.exec(codeClassName || '');
+      
+      if (!inline && match) {
+        return (
+          <div className="relative">
+            <div className={`absolute top-2 right-2 text-xs px-2 py-1 rounded ${
+              isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
+            }`}>
+              {match[1]}
+            </div>
+            <pre className={`${codeClassName} overflow-x-auto`}>
+              <code className={codeClassName}>
+                {children}
+              </code>
+            </pre>
+          </div>
+        );
+      }
+      
+      return (
+        <code className={`${codeClassName || ''} ${
+          isDarkMode 
+            ? 'bg-gray-800 text-pink-400' 
+            : 'bg-gray-100 text-pink-600'
+        } px-1 py-0.5 rounded text-sm`}>
+          {children}
+        </code>
+      );
+    },
+    // Safe rendering of links
+    a: ({ ...props }) => (
+      <a 
+        {...props} 
+        className="text-blue-500 hover:text-blue-600 underline"
+        target="_blank"
+        rel="noopener noreferrer"
+      />
+    ),
+    // Safe rendering of images
+    img: ({ ...props }) => (
+      <img 
+        {...props} 
+        className="max-w-full h-auto rounded-md my-2"
+        loading="lazy"
+        onError={(e) => {
+          e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzk0YTNiOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+SW1hZ2UgZmFpbGVkIHRvIGxvYWQ8L3RleHQ+Cjwvc3ZnPg==';
+          e.currentTarget.alt = 'Image failed to load';
+        }}
+      />
+    ),
+    // Safe rendering of tables
+    table: ({ ...props }) => (
+      <div className="overflow-x-auto my-4">
+        <table {...props} className={`min-w-full divide-y ${
+          isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
+        }`} />
+      </div>
+    ),
+    th: ({ ...props }) => (
+      <th {...props} className={`px-4 py-2 text-left text-sm font-medium ${
+        isDarkMode ? 'text-gray-300 bg-gray-800' : 'text-gray-700 bg-gray-50'
+      }`} />
+    ),
+    td: ({ ...props }) => (
+      <td {...props} className={`px-4 py-2 text-sm ${
+        isDarkMode ? 'text-gray-300 border-gray-700' : 'text-gray-600 border-gray-200'
+      } border-t`} />
+    )
+  };
   
   const fallback = (
     <div className={`p-4 rounded-md ${
@@ -61,80 +136,8 @@ export default function SafeMarkdown({ content, className }: SafeMarkdownProps) 
       <div className={className}>
         <ReactMarkdown 
           remarkPlugins={[remarkGfm]} 
-          components={{
-            // Safe rendering of code blocks
-            code: (props: any) => {
-              const { inline, className: codeClassName, children } = props;
-              const match = /language-(\w+)/.exec(codeClassName || '');
-            
-            if (!inline && match) {
-              return (
-                <div className="relative">
-                  <div className={`absolute top-2 right-2 text-xs px-2 py-1 rounded ${
-                    isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {match[1]}
-                  </div>
-                  <pre className={`${codeClassName} overflow-x-auto`}>
-                    <code className={codeClassName}>
-                      {children}
-                    </code>
-                  </pre>
-                </div>
-              );
-            }
-            
-            return (
-              <code className={`${codeClassName || ''} ${
-                isDarkMode 
-                  ? 'bg-gray-800 text-pink-400' 
-                  : 'bg-gray-100 text-pink-600'
-              } px-1 py-0.5 rounded text-sm`}>
-                {children}
-              </code>
-            );
-          },
-          // Safe rendering of links
-          a: ({ ...props }) => (
-            <a 
-              {...props} 
-              className="text-blue-500 hover:text-blue-600 underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            />
-          ),
-          // Safe rendering of images
-          img: ({ ...props }) => (
-            <img 
-              {...props} 
-              className="max-w-full h-auto rounded-md my-2"
-              loading="lazy"
-              onError={(e) => {
-                e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+CiAgPHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNiIgZmlsbD0iIzk0YTNiOCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+SW1hZ2UgZmFpbGVkIHRvIGxvYWQ8L3RleHQ+Cjwvc3ZnPg==';
-                e.currentTarget.alt = 'Image failed to load';
-              }}
-            />
-          ),
-          // Safe rendering of tables
-          table: ({ ...props }) => (
-            <div className="overflow-x-auto my-4">
-              <table {...props} className={`min-w-full divide-y ${
-                isDarkMode ? 'divide-gray-700' : 'divide-gray-200'
-              }`} />
-            </div>
-          ),
-          th: ({ ...props }) => (
-            <th {...props} className={`px-4 py-2 text-left text-sm font-medium ${
-              isDarkMode ? 'text-gray-300 bg-gray-800' : 'text-gray-700 bg-gray-50'
-            }`} />
-          ),
-          td: ({ ...props }) => (
-            <td {...props} className={`px-4 py-2 text-sm ${
-              isDarkMode ? 'text-gray-300 border-gray-700' : 'text-gray-600 border-gray-200'
-            } border-t`} />
-          )
-        }}
-      >
+          components={components}
+        >
           {content}
         </ReactMarkdown>
       </div>

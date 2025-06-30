@@ -136,4 +136,53 @@ describe('api utility', () => {
     });
   });
 
+  describe('api.stream', () => {
+    it('should handle SSE stream', async () => {
+      const mockReader = {
+        read: jest.fn()
+          .mockResolvedValueOnce({ 
+            done: false, 
+            value: new TextEncoder().encode('data: {"message": "Hello"}\n\n') 
+          })
+          .mockResolvedValueOnce({ 
+            done: false, 
+            value: new TextEncoder().encode('data: {"message": "World"}\n\n') 
+          })
+          .mockResolvedValueOnce({ done: true }),
+      };
+
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        body: {
+          getReader: () => mockReader,
+        },
+      });
+
+      const messages: Array<{ message: string }> = [];
+      await api.stream('/test-stream', {
+        onMessage: (data) => messages.push(data),
+      });
+
+      expect(messages).toEqual([
+        { message: 'Hello' },
+        { message: 'World' },
+      ]);
+    });
+
+    it('should handle stream errors', async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      });
+
+      const onError = jest.fn();
+      await api.stream('/test-stream', {
+        onMessage: jest.fn(),
+        onError,
+      });
+
+      expect(onError).toHaveBeenCalledWith(expect.any(Error));
+    });
+  });
 });

@@ -9,7 +9,7 @@ jest.mock('@/store/sidebar');
 
 // Mock ReactMarkdown to control its behavior
 jest.mock('react-markdown', () => {
-  return function MockReactMarkdown({ children, components }: any) {
+  return function MockReactMarkdown({ children, components }: { children: React.ReactNode; components?: Record<string, React.ComponentType> }) {
     // For testing error scenarios
     if (children === 'THROW_ERROR') {
       throw new Error('Markdown render error');

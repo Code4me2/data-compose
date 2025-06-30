@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Menu, Plus, LogOut, User, Search } from 'lucide-react';
+import { Menu, Plus, LogOut, User, Search, Trash2 } from 'lucide-react';
 import { useSidebarStore } from '@/store/sidebar';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { isToday, isYesterday, isThisWeek, isThisMonth, format } from 'date-fns';
@@ -21,24 +21,31 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [chatSearchQuery, setChatSearchQuery] = useState('');
   const [chatHistory, setChatHistory] = useState<Chat[]>([]);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{ chatId: string; title: string } | null>(null);
+  const [showTrashIcon, setShowTrashIcon] = useState<string | null>(null);
   const taskBarRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const { isDarkMode, isTaskBarExpanded, toggleTaskBar, setTaskBarExpanded } = useSidebarStore();
   const { data: session } = useSession();
 
-  // Click outside detection for user menu only
+  // Click outside detection for user menu and trash icon
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
       }
+      // Hide trash icon when clicking outside
+      const target = event.target as HTMLElement;
+      if (!target.closest('.chat-item-container')) {
+        setShowTrashIcon(null);
+      }
     };
 
-    if (showUserMenu) {
+    if (showUserMenu || showTrashIcon) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [showUserMenu]);
+  }, [showUserMenu, showTrashIcon]);
 
   // Fetch chat history for signed-in users
   useEffect(() => {
@@ -68,6 +75,29 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
     } catch (error) {
       logger.error('Error fetching chat history', error);
       console.error('Error fetching chat history:', error);
+    }
+  };
+
+  const handleDeleteChat = async (chatId: string) => {
+    try {
+      // Optimistically remove from UI for immediate feedback
+      const previousHistory = chatHistory;
+      setChatHistory(prev => prev.filter(chat => chat.id !== chatId));
+      setDeleteConfirmation(null);
+      
+      // Make backend API call to permanently delete the chat
+      const response = await api.delete(`/api/chats/${chatId}`);
+      if (!response.ok) {
+        // Revert on error
+        logger.error('Failed to delete chat from backend', { chatId, status: response.status });
+        setChatHistory(previousHistory);
+        // Optionally show an error message to the user
+        alert('Failed to delete chat. Please try again.');
+      }
+    } catch (error) {
+      logger.error('Error deleting chat', error);
+      // Refresh chat history on error
+      fetchChatHistory();
     }
   };
 
@@ -131,7 +161,7 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
           <div className={`flex items-center ${isTaskBarExpanded ? 'px-4 justify-between' : 'px-2 justify-center'} pt-2 pb-4`}>
             {isTaskBarExpanded ? (
               <>
-                {/* Logo and Title on the left */}
+                {/* Title on the left */}
                 <div className="flex items-center gap-2">
                   <img 
                     src="/logo.png" 
@@ -173,7 +203,7 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
             )}
           </div>
           
-          {/* Divider line - positioned to align with AI Legal text */}
+          {/* Divider line - positioned to align with Aletheia text */}
           <div className={`absolute left-0 right-0 ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`} style={{ 
             height: '1px',
             bottom: '0'
@@ -359,30 +389,60 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
                           {chats
                             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                             .map((chat) => (
-                              <button
+                              <div
                                 key={chat.id}
-                                onClick={() => {
-                                  if (onChatSelect) {
-                                    onChatSelect(chat.id);
-                                  } else {
-                                    window.location.href = `/?chat=${chat.id}`;
-                                  }
-                                }}
-                                className={`w-full text-left p-2 rounded-lg transition-colors ${
-                                  isDarkMode 
-                                    ? 'hover:bg-[#25262b] text-gray-300' 
-                                    : 'hover:bg-gray-100 text-gray-700'
-                                }`}
+                                className="chat-item-container relative"
                               >
-                                <div className={`text-sm font-medium truncate`}>
-                                  {chat.title || chat.preview?.substring(0, 40) + '...' || 'New Chat'}
-                                </div>
-                                <div className={`text-xs mt-0.5 ${
-                                  isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                                }`}>
-                                  {format(new Date(chat.createdAt), 'h:mm a')}
-                                </div>
-                              </button>
+                                <button
+                                  onClick={() => {
+                                    if (onChatSelect) {
+                                      onChatSelect(chat.id);
+                                    } else {
+                                      window.location.href = `/?chat=${chat.id}`;
+                                    }
+                                  }}
+                                  onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    setShowTrashIcon(chat.id);
+                                  }}
+                                  className={`w-full text-left p-2 rounded-lg transition-colors ${
+                                    isDarkMode 
+                                      ? 'hover:bg-[#25262b] text-gray-300' 
+                                      : 'hover:bg-gray-100 text-gray-700'
+                                  }`}
+                                >
+                                  <div className={`text-sm font-medium truncate pr-8`}>
+                                    {chat.title || chat.preview?.substring(0, 40) + '...' || 'New Chat'}
+                                  </div>
+                                  <div className={`text-xs mt-0.5 ${
+                                    isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                  }`}>
+                                    {format(new Date(chat.createdAt), 'h:mm a')}
+                                  </div>
+                                </button>
+                                
+                                {/* Trash icon that appears on right-click */}
+                                {showTrashIcon === chat.id && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowTrashIcon(null);
+                                      setDeleteConfirmation({ 
+                                        chatId: chat.id, 
+                                        title: chat.title || 'Untitled Chat' 
+                                      });
+                                    }}
+                                    className={`absolute top-2 right-2 p-1 rounded transition-all ${
+                                      isDarkMode 
+                                        ? 'bg-red-900/20 hover:bg-red-900/40 text-red-400' 
+                                        : 'bg-red-100 hover:bg-red-200 text-red-600'
+                                    }`}
+                                    aria-label="Delete chat"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                )}
+                              </div>
                             ))}
                         </div>
                       </div>
@@ -517,6 +577,37 @@ function TaskBarContent({ onChatSelect, onNewChat }: TaskBarProps = {}) {
         </div>
       </div>
 
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className={`mx-4 p-6 rounded-lg shadow-xl max-w-sm w-full ${
+            isDarkMode ? 'bg-[#25262b] text-gray-100' : 'bg-white text-gray-900'
+          }`}>
+            <h3 className="text-lg font-semibold mb-3">Delete Chat?</h3>
+            <p className={`mb-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Are you sure you want to delete "{deleteConfirmation.title}"? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setDeleteConfirmation(null)}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  isDarkMode 
+                    ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteChat(deleteConfirmation.chatId)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </>
   );

@@ -104,3 +104,27 @@ export async function checkCsrf(request: Request): Promise<boolean> {
   
   return verifyCsrfToken(token);
 }
+
+// Synchronous test helpers for unit tests
+export function generateCSRFToken(): string {
+  // Generate a random token for testing
+  const buffer = new Uint8Array(32);
+  crypto.getRandomValues(buffer);
+  return bufferToHex(buffer.buffer);
+}
+
+export function validateCSRFToken(providedToken: string | null | undefined, expectedToken: string | null | undefined): boolean {
+  if (!providedToken || !expectedToken) return false;
+  
+  // Timing-safe comparison
+  if (providedToken.length !== expectedToken.length) {
+    return false;
+  }
+  
+  let result = 0;
+  for (let i = 0; i < providedToken.length; i++) {
+    result |= providedToken.charCodeAt(i) ^ expectedToken.charCodeAt(i);
+  }
+  
+  return result === 0;
+}

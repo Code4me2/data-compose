@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Send } from 'lucide-react';
+import { Send, Wrench, Settings } from 'lucide-react';
 import DarkModeToggle from '@/components/DarkModeToggle';
 import TaskBar from '@/components/TaskBar';
 import CitationPanel from '@/components/CitationPanel';
@@ -10,6 +10,7 @@ import AnalyticsDropdown from '@/components/AnalyticsDropdown';
 import SafeMarkdown from '@/components/SafeMarkdown';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import DownloadButton from '@/components/DownloadButton';
+import AuthGuard from '@/components/AuthGuard';
 import { useSidebarStore } from '@/store/sidebar';
 import { getRandomMockCitation } from '@/utils/mockCitations';
 import { mockAnalyticsData } from '@/utils/mockAnalytics';
@@ -291,6 +292,9 @@ function LawyerChatContent() {
         chatIdForMessage = newChatId;
       }
     }
+    
+    // Create session key for API call
+    let sessionKey = chatIdForMessage || currentChatId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     const userMessage: Message = {
       id: Date.now(),
@@ -330,6 +334,7 @@ function LawyerChatContent() {
       const response = await api.post('/api/chat', {
         message: inputText,
         tools: selectedTools,
+        sessionKey: sessionKey || currentChatId || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         sessionId: session?.user?.email || 'anonymous',
         userId: session?.user?.email
       });
@@ -545,7 +550,7 @@ function LawyerChatContent() {
             </div>
             
             <div className="flex items-center gap-2 relative z-50">
-              {messages.length > 0 && session && (
+              {messages.length > 0 && (
                 <DownloadButton 
                   onDownloadPDF={handleDownloadChatPDF}
                   onDownloadText={handleDownloadChatText}
@@ -553,7 +558,29 @@ function LawyerChatContent() {
                   compact
                 />
               )}
-              <DarkModeToggle />
+              {/* Settings/Developer Dashboard Link */}
+              {session?.user && (
+                <a
+                  href="/chat/data-compose"
+                  className={`p-2 rounded-lg transition-colors ${
+                    isDarkMode 
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                  title="Developer Dashboard"
+                  aria-label="Developer Dashboard"
+                >
+                  <Settings size={20} />
+                </a>
+              )}
+              <div className="flex flex-col items-center gap-3 mr-2">
+                <img 
+                  src="/chat/logo.png" 
+                  alt="Logo" 
+                  className="h-8 w-8 object-contain"
+                />
+                <DarkModeToggle />
+              </div>
             </div>
           </div>
         </div>
@@ -575,8 +602,13 @@ function LawyerChatContent() {
                 <h2 className="font-medium text-center" style={{ 
                   color: isDarkMode ? '#9CA3AF' : '#E1C88E',
                   fontSize: '2.52rem', // 3.6rem (text-6xl) * 0.7
+                  marginBottom: '1rem'
+                }}>Judicial Access Project</h2>
+                <p className="text-center" style={{
+                  color: isDarkMode ? '#6B7280' : '#9CA3AF',
+                  fontSize: '1.125rem', // text-lg
                   marginBottom: 'calc(125px + 2cm + 3cm)' // Input height (125px) + 2cm gap + 3cm additional
-                }}>Hi Welcome to AI Legal</h2>
+                }}>Bridge the vast landscape of judicial transcript data with targeted AI retrieval and citation</p>
               </div>
             </div>
           )}
@@ -631,48 +663,42 @@ function LawyerChatContent() {
                         </div>
                       )}
                       
-                      {/* Citation and Analytics Buttons - Show only for signed-in users after response is complete */}
+                      {/* Citation and Analytics Buttons - Show after response is complete */}
                       {message.sender === 'assistant' && message.text && !(isLoading && message.id === messages[messages.length - 1].id) && (
-                        session ? (
-                          <div className={`mt-3 w-full flex items-center gap-2`}>
-                            <button
-                              onClick={() => handleCitationClick()}
-                              className={`flex-1 px-4 py-2 rounded-lg transition-all duration-200 transform active:scale-95 ${
-                                isDarkMode 
-                                  ? 'bg-[#25262b] text-[#d1d1d1] hover:bg-[#404147] active:bg-[#505157]' 
-                                  : 'bg-[#E1C88E] text-[#004A84] hover:bg-[#C8A665] active:bg-[#B59552]'
-                              }`}
-                              style={{
-                                fontSize: '1.092rem', // 1.3x of text-sm (0.875rem × 1.3 = 1.1375rem)
-                                fontWeight: '600',
-                                letterSpacing: '0.05em'
-                              }}
+                        <div className={`mt-3 w-full flex items-center gap-2`}>
+                          <button
+                            onClick={() => handleCitationClick()}
+                            className={`flex-1 px-4 py-2 rounded-lg transition-all duration-200 transform active:scale-95 ${
+                              isDarkMode 
+                                ? 'bg-[#25262b] text-[#d1d1d1] hover:bg-[#404147] active:bg-[#505157]' 
+                                : 'bg-[#E1C88E] text-[#004A84] hover:bg-[#C8A665] active:bg-[#B59552]'
+                            }`}
+                            style={{
+                              fontSize: '1.092rem', // 1.3x of text-sm (0.875rem × 1.3 = 1.1375rem)
+                              fontWeight: '600',
+                              letterSpacing: '0.05em'
+                            }}
+                          >
+                            CITATIONS
+                          </button>
+                          
+                          {/* Analytics Button - Show only if analytics data exists */}
+                          {message.analytics && (
+                            <ErrorBoundary
+                              level="component"
+                              isolate
+                              fallback={
+                                <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                  Analytics unavailable
+                                </div>
+                              }
                             >
-                              CITATIONS
-                            </button>
-                            
-                            {/* Analytics Button - Show only if analytics data exists */}
-                            {message.analytics && (
-                              <ErrorBoundary
-                                level="component"
-                                isolate
-                                fallback={
-                                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                                    Analytics unavailable
-                                  </div>
-                                }
-                              >
-                                <AnalyticsDropdown 
-                                  data={message.analytics}
-                                />
-                              </ErrorBoundary>
-                            )}
-                          </div>
-                        ) : (
-                          <div className={`mt-3 text-center text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                            <p>Sign in to access citations, analytics, and advanced tools</p>
-                          </div>
-                        )
+                              <AnalyticsDropdown 
+                                data={message.analytics}
+                              />
+                            </ErrorBoundary>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -730,42 +756,24 @@ function LawyerChatContent() {
                 disabled={false}
               />
               
-              {/* Tools Button and Selected Tools - Only for signed-in users */}
-              {session && (
-                <div className="absolute transition-all duration-500 flex items-center gap-2" style={{ 
-                  left: buttonPadding, 
-                  bottom: buttonPadding 
-                }}>
-                  <div className="relative tools-dropdown-container">
-                    <button
-                      onClick={() => setShowToolsDropdown(!showToolsDropdown)}
-                      className={`flex items-center justify-center transition-colors`}
-                      aria-label="Select tool"
-                      title="Select tool"
-                      style={{
-                        color: isDarkMode ? '#d1d1d1' : '#004A84',
-                        width: buttonSize,
-                        height: buttonSize
-                      }}
-                    >
-                      <svg 
-                        width={iconSize * 1.4} 
-                        height={iconSize * 1.4} 
-                        viewBox="0 0 24 24" 
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        {/* Top slider track */}
-                        <line x1="4" y1="8" x2="20" y2="8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                        {/* Top slider knob (connected) */}
-                        <circle cx="14" cy="8" r="3" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
-                        
-                        {/* Bottom slider track */}
-                        <line x1="4" y1="16" x2="20" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                        {/* Bottom slider knob (connected) */}
-                        <circle cx="10" cy="16" r="3" fill="currentColor" stroke="currentColor" strokeWidth="0.5" />
-                      </svg>
-                    </button>
+              {/* Tools Button and Selected Tools */}
+              <div className="absolute transition-all duration-500 flex items-center gap-2" style={{ 
+                left: buttonPadding, 
+                bottom: buttonPadding 
+              }}>
+                <div className="relative tools-dropdown-container">
+                  <button
+                    onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+                    className={`flex items-center justify-center ${isDarkMode ? 'text-gray-400 hover:text-gray-200' : 'text-gray-500 hover:text-gray-700'} transition-colors`}
+                    aria-label="Select tool"
+                    title="Select tool"
+                    style={{
+                      width: buttonSize,
+                      height: buttonSize
+                    }}
+                  >
+                    <Wrench size={iconSize} />
+                  </button>
                   
                   {/* Tools Dropdown */}
                   {showToolsDropdown && (
@@ -848,7 +856,6 @@ function LawyerChatContent() {
                   </div>
                 )}
               </div>
-              )}
               
               {/* Send Button - Inside input box */}
               <button
@@ -924,11 +931,13 @@ function LawyerChatContent() {
   );
 }
 
-// Export with error boundary wrapper
+// Export with error boundary and auth guard wrapper
 export default function LawyerChat() {
   return (
     <ErrorBoundary level="page">
-      <LawyerChatContent />
+      <AuthGuard>
+        <LawyerChatContent />
+      </AuthGuard>
     </ErrorBoundary>
   );
 }

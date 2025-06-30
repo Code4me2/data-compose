@@ -2,13 +2,13 @@ import { validateMessage, sanitizeHtml } from '../validation';
 
 describe('validation utils', () => {
   describe('validateMessage', () => {
-    it('should return true for valid messages', () => {
+    it('should return valid result for valid messages', () => {
       expect(validateMessage('Hello, this is a valid message').isValid).toBe(true);
       expect(validateMessage('A').isValid).toBe(true); // Single character
       expect(validateMessage('A'.repeat(10000)).isValid).toBe(true); // Max length
     });
 
-    it('should return false for invalid messages', () => {
+    it('should return invalid result for invalid messages', () => {
       expect(validateMessage('').isValid).toBe(false);
       expect(validateMessage('   ').isValid).toBe(false); // Only whitespace
       expect(validateMessage('A'.repeat(10001)).isValid).toBe(false); // Exceeds max length
@@ -17,6 +17,20 @@ describe('validation utils', () => {
     it('should trim whitespace before validation', () => {
       expect(validateMessage('  valid message  ').isValid).toBe(true);
       expect(validateMessage('  \n\t  ').isValid).toBe(false);
+    });
+    
+    it('should provide error messages for invalid inputs', () => {
+      const emptyResult = validateMessage('');
+      expect(emptyResult.error).toBe('Message cannot be empty');
+      
+      const tooLongResult = validateMessage('A'.repeat(10001));
+      expect(tooLongResult.error).toContain('Message too long');
+    });
+    
+    it('should sanitize dangerous content', () => {
+      const result = validateMessage('Hello<script>alert("XSS")</script>World');
+      expect(result.isValid).toBe(true);
+      expect(result.sanitized).toBe('HelloWorld');
     });
   });
 

@@ -10,12 +10,14 @@ const logger = createLogger('chat-api');
 
 export async function POST(request: NextRequest) {
   try {
-    // Check if user is authenticated (optional but recommended)
+    // Check if user is authenticated (required)
     const session = await getServerSession(authOptions);
     
-    // Log session status for debugging
     if (!session) {
-      logger.debug('Anonymous chat request received');
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
     
     const body = await request.json();
@@ -44,11 +46,13 @@ export async function POST(request: NextRequest) {
 
     // Prepare payload for n8n webhook with sanitized data
     const payload = {
+      action: 'public_chat',
       message: messageValidation.sanitized!,
       tools: Array.isArray(sanitizedBody.tools) ? sanitizedBody.tools.filter((t: unknown) => typeof t === 'string').slice(0, 5) : [], // Max 5 tools
       tool: sanitizedBody.tool || 'default', // Keep for backward compatibility
-      sessionId: sanitizedBody.sessionId || 'anonymous',
-      userId: sanitizedBody.userId,
+      sessionKey: sanitizedBody.sessionKey || sanitizedBody.sessionId || session.user?.email || 'anonymous',
+      sessionId: session.user?.email || sanitizedBody.sessionId,
+      userId: session.user?.email || sanitizedBody.userId,
       timestamp: new Date().toISOString(),
       // Removed metadata to prevent information disclosure
     };

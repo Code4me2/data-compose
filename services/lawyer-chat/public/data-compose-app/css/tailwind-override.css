@@ -1,0 +1,202 @@
+/* Tailwind-style overrides for lawyer-chat theme consistency */
+
+/* Color scheme matching lawyer-chat */
+:root {
+    --lawyer-blue: #004A84;
+    --lawyer-gold: #C7A562;
+    --lawyer-gold-hover: #B59552;
+    --lawyer-gold-light: #E1C88E;
+    --lawyer-dark-bg: #1a1b1e;
+    --lawyer-dark-secondary: #25262b;
+    --lawyer-dark-hover: #404147;
+    --lawyer-dark-text: #d1d1d1;
+    --lawyer-dark-muted: #9ca3af;
+}
+
+/* Override existing CSS variables */
+:root {
+    --primary-color: var(--lawyer-blue);
+    --secondary-color: var(--lawyer-gold);
+    --success-color: #27ae60;
+    --warning-color: #f39c12;
+    --danger-color: #e74c3c;
+    --light-bg: #f9fafb;
+    --white: #ffffff;
+    --text-primary: var(--lawyer-blue);
+    --text-secondary: #6b7280;
+    --text-muted: #9ca3af;
+    --border-color: #e5e7eb;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f9fafb;
+    --bg-hover: rgba(0, 74, 132, 0.05);
+}
+
+/* Dark mode overrides */
+.dark :root,
+:root.dark {
+    --primary-color: var(--lawyer-dark-text);
+    --secondary-color: var(--lawyer-gold);
+    --light-bg: var(--lawyer-dark-bg);
+    --text-primary: var(--lawyer-dark-text);
+    --text-secondary: var(--lawyer-dark-muted);
+    --border-color: #374151;
+    --bg-primary: var(--lawyer-dark-bg);
+    --bg-secondary: var(--lawyer-dark-secondary);
+    --bg-hover: var(--lawyer-dark-hover);
+}
+
+/* Navigation styling to match lawyer-chat */
+.app-nav {
+    display: none; /* Hide original nav, using Tailwind wrapper */
+}
+
+/* Button styling to match lawyer-chat */
+.btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+}
+
+.btn-primary {
+    background-color: var(--lawyer-gold) !important;
+    color: var(--lawyer-blue) !important;
+    border: none !important;
+}
+
+.btn-primary:hover {
+    background-color: var(--lawyer-gold-hover) !important;
+}
+
+.dark .btn-primary {
+    background-color: transparent !important;
+    border: 2px solid var(--lawyer-dark-text) !important;
+    color: var(--lawyer-dark-text) !important;
+}
+
+.dark .btn-primary:hover {
+    background-color: var(--lawyer-dark-hover) !important;
+}
+
+/* Form inputs to match lawyer-chat */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+    @apply rounded-lg px-4 py-2 transition-colors;
+    background-color: #f3f4f6;
+    border: 1px solid #e5e7eb;
+}
+
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark textarea,
+.dark select {
+    background-color: var(--lawyer-dark-secondary);
+    border-color: #374151;
+    color: var(--lawyer-dark-text);
+}
+
+/* Cards and containers */
+.card,
+.feature-card {
+    @apply rounded-lg shadow-sm;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+}
+
+.dark .card,
+.dark .feature-card {
+    background-color: var(--lawyer-dark-secondary);
+    border-color: #374151;
+}
+
+/* Text colors */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary);
+}
+
+.dark h1,
+.dark h2, 
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+    color: var(--lawyer-dark-text);
+}
+
+/* Body background */
+body {
+    background-color: #f9fafb;
+}
+
+.dark body,
+body.dark {
+    background-color: var(--lawyer-dark-bg);
+}
+
+/* Chat interface styling */
+.chat-container {
+    background-color: white;
+    @apply rounded-lg shadow-sm;
+}
+
+.dark .chat-container {
+    background-color: var(--lawyer-dark-secondary);
+}
+
+.chat-input {
+    background-color: #f3f4f6 !important;
+}
+
+.dark .chat-input {
+    background-color: var(--lawyer-dark-secondary) !important;
+    color: var(--lawyer-dark-text) !important;
+}
+
+/* Message styling */
+.message.user {
+    background-color: var(--lawyer-blue) !important;
+}
+
+.dark .message.user {
+    background-color: #2a2b2f !important;
+}
+
+/* Loading states */
+.loading-dots span {
+    background-color: var(--lawyer-gold);
+}
+
+.dark .loading-dots span {
+    background-color: var(--lawyer-dark-muted);
+}
+
+/* Scrollbar styling */
+.hide-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.hide-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.hide-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 4px;
+}
+
+.dark .hide-scrollbar::-webkit-scrollbar-thumb {
+    background-color: #4b5563;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .app-container {
+        padding: 0;
+    }
+    
+    .content-section {
+        padding: 1rem;
+    }
+}
