@@ -1,8 +1,12 @@
 import logging
 import base64
+import os
+from typing import List
+
 
 from fastapi import FastAPI, HTTPException, status, Query
 from pydantic import BaseModel, Field
+from unstructured.partition.auto import partition
 
 
 # Configure logging
@@ -26,9 +30,13 @@ class ParseResponse(BaseModel):
     text: str
 
 
-"""Handling the POST /parse_documents request"""
+
 @app.post("/parse_documents", response_model=ParseResponse)
 async def search_documents(request: ParseRequest):
+    """Handling the POST /parse_documents request"""
+
+
+    # TODO: include a check to throw an error if the filename doesn't include a valid ending
 
     """ First we decode the file from base64 back to the original binary"""
     decoded_file = base64.b64decode(request.input_base64)
@@ -45,13 +53,27 @@ async def search_documents(request: ParseRequest):
 
     """ Now we call the unstructured.io library to parse the document"""
 
-    text = ''
+    
+
+   
+
+    elements = partition(filename=request.file_name)
 
 
+    text = "\n\n".join([str(el) for el in elements])
+
+
+
+    """ Once we're done reading the file, we can safely remove it, as to not waste hard drive space"""
+    if(os.path.exists(request.file_name)):
+        os.remove(request.file_name)
+
+    else:
+        print("Failed to remove file")
 
 
     """ Return a response with the data from unstructured.io"""
 
     return ParseResponse(
-        text: text
+        text = text
     )
