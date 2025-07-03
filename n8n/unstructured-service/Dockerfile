@@ -3,15 +3,12 @@ FROM python:3.13-slim
 WORKDIR /app
 
 # Copy only requirements first for better caching
-COPY requirements-minimal.txt .
-RUN pip install --no-cache-dir -r requirements-minimal.txt
+#COPY requirements.txt .
+#RUN pip install --no-cache-dir -r requirements.txt
 
-
-# Set environment variable for model cache
-ENV SENTENCE_TRANSFORMERS_HOME=/app/models
 
 # Copy application code
-COPY . .
+#COPY . .
 
 
 # Run the application

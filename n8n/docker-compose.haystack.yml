@@ -49,8 +49,7 @@ services:
 
   unstructured-service:
     build:
-      context: ./unstructured-service
-      dockerfile: Dockerfile
+      dockerfile: ./n8n/unstructured-service/Dockerfile
     container_name: unstructured-judicial
     ports:
       - "8880:8880"
@@ -59,6 +58,8 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./unstructured-service:/app
+    networks:
+      - backend
     restart: unless-stopped
 
 volumes:
