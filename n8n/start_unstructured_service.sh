@@ -35,3 +35,4 @@ fi
 echo "📦 Starting Haystack and Elasticsearch services..."
 docker-compose -f docker-compose.yml -f n8n/docker-compose.haystack.yml up -d unstructured-service
 
+sleep 30

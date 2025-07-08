@@ -56,8 +56,6 @@ services:
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-    volumes:
-      - ./unstructured-service:/app
     networks:
       - backend
     restart: unless-stopped
