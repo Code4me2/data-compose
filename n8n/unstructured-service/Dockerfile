@@ -1,4 +1,4 @@
-FROM python:3.13
+FROM python:3.13-slim
 
 WORKDIR /app
 
@@ -8,14 +8,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy only requirements first for better caching
-COPY requirements.txt ./
+COPY n8n/unstructured-service/requirements.txt .
 RUN pip install -r requirements.txt
-
-#RUN pip install fastapi uvicorn
 
 
 # Copy application code
 COPY . .
+
+COPY n8n/unstructured-service/unstructured_service.py .
 
 
 # Run the application

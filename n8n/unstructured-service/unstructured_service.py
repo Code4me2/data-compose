@@ -1,11 +1,13 @@
 import logging
 import base64
 import os
-from typing import List
+#from typing import List
 
+# for some reason the docker container errors unless you do these two imports in this way 
+# (not in the format of "from ... import ...")
+import fastapi
+import pydantic
 
-from fastapi import FastAPI, HTTPException, status, Query
-from pydantic import BaseModel, Field
 from unstructured.partition.auto import partition
 
 
@@ -14,20 +16,21 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(
+app = fastapi.FastAPI(
     title="Unstructured.io Legal Document Service",
     description="API for legal document parsing and OCR with Unstructured.io",
     version="0.1.0"
 )
 
 """ Data structures of the request and the response"""
-class ParseRequest(BaseModel):
+class ParseRequest(pydantic.BaseModel):
     file_name: str
     input_base64: str
 
 
-class ParseResponse(BaseModel):
+class ParseResponse(pydantic.BaseModel):
     text: str
+    structured_text: list[str]
 
 
 
@@ -62,6 +65,12 @@ async def search_documents(request: ParseRequest):
 
     text = "\n\n".join([str(el) for el in elements])
 
+    structured_text:list[str] = []
+
+    for element in elements:
+    
+        structured_text.append(str(element))
+
 
 
     """ Once we're done reading the file, we can safely remove it, as to not waste hard drive space"""
@@ -75,5 +84,6 @@ async def search_documents(request: ParseRequest):
     """ Return a response with the data from unstructured.io"""
 
     return ParseResponse(
-        text = text
+        text = text,
+        structured_text = structured_text
     )
