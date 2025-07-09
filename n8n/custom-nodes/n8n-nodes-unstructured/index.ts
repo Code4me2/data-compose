@@ -1,6 +1,6 @@
 import { INodeType } from "n8n-workflow";
-import { yakeKeywordExtraction } from "./nodes/yakeKeywordExtraction/yakeKeywordExtraction.node";
+import { unstructured } from "./nodes/unstructured/unstructured.node";
 
 export const nodeTypes: INodeType[] = [
-  new yakeKeywordExtraction(),
+  new unstructured(),
 ];

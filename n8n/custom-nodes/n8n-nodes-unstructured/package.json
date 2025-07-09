@@ -1,12 +1,12 @@
 {
-  "name": "n8n-nodes-yake",
+  "name": "n8n-nodes-unstructured",
   "version": "0.1.0",
-  "description": "n8n node for extracting key words and phrases from text using a python library called YAKE",
+  "description": "n8n node for extracting text from documents, such as pdfs and word docs",
   "keywords": [
     "n8n",
     "n8n-node",
     "keyword",
-    "keyword-extraction",
+    "text-extraction",
     "legal",
     "document-search"
   ],
@@ -16,7 +16,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/judicial-access/n8n-nodes-yake.git"
+    "url": "https://github.com/judicial-access/n8n-nodes-unstructured.git"
   },
   "main": "index.js",
   "scripts": {
@@ -33,7 +33,7 @@
   "n8n": {
     "n8nNodesApiVersion": 1,
     "nodes": [
-      "dist/nodes/yakeKeywordExtraction/yakeKeywordExtraction.node.js"
+      "dist/nodes/unstructured/unstructured.node.js"
     ]
   },
   "devDependencies": {

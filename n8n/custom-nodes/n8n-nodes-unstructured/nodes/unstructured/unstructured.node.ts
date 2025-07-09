@@ -8,9 +8,9 @@ import {
 } from 'n8n-workflow';
 
 
-export class unstructuredio implements INodeType {
+export class unstructured implements INodeType {
   description: INodeTypeDescription = {
-    displayName: 'Parse Documents',
+    displayName: 'Parse Documents with Unstructured.io',
     name: 'unstructuredio_text_extraction',
     group: ['transform'],
     version: 1,
@@ -39,7 +39,7 @@ export class unstructuredio implements INodeType {
         displayName: 'Unstructured service url',
         name: 'unstructuredUrl',
         type: 'string',
-        default: 'http://unstructured-service:8880',   
+        default: 'http://localhost:8880',   
         description: 'URL of the unstructured python service',
       },
     ],
@@ -100,12 +100,6 @@ export class unstructuredio implements INodeType {
           throw error;
         }
 
-        
-
-        
-
-        
-        
 
       // throw an error and stop if something goes wrong
       } catch (error) { 
