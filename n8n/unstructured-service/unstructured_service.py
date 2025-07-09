@@ -39,7 +39,12 @@ async def search_documents(request: ParseRequest):
     """Handling the POST /parse_documents request"""
 
 
-    # TODO: include a check to throw an error if the filename doesn't include a valid ending
+    # Send back an error if the filename doesn't include a valid ending
+    if('.' not in request.file_name):
+        raise fastapi.HTTPException(
+            status_code=fastapi.status.HTTP_400_BAD_REQUEST,
+            detail="Filename seems to not have a valid extension (ie. .pdf, .doc, .docx, .txt, etc)"
+        )
 
     """ First we decode the file from base64 back to the original binary"""
     decoded_file = base64.b64decode(request.input_base64)
@@ -56,10 +61,6 @@ async def search_documents(request: ParseRequest):
 
     """ Now we call the unstructured.io library to parse the document"""
 
-    
-
-   
-
     elements = partition(filename=request.file_name)
 
 
@@ -70,7 +71,6 @@ async def search_documents(request: ParseRequest):
     for element in elements:
     
         structured_text.append(str(element))
-
 
 
     """ Once we're done reading the file, we can safely remove it, as to not waste hard drive space"""

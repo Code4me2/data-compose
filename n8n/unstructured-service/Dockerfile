@@ -23,7 +23,7 @@ RUN pip install -r requirements.txt
 
 
 # Copy application code
-COPY . .
+#COPY . .
 
 COPY n8n/unstructured-service/unstructured_service.py .
 

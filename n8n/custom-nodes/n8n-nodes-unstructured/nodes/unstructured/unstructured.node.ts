@@ -94,7 +94,7 @@ export class unstructured implements INodeType {
         } catch (error) {
           if (error instanceof Error) {
             throw new Error(
-              `Failed to connect to Unstructured service at ${url}: ${error.message}`,
+              `Bad or no response from the unstructured service: ${error.message}`,
             );
           }
           throw error;
